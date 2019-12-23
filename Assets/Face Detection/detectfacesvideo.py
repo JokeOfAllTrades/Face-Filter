@@ -38,12 +38,12 @@ while True:
 	# to have a maximum width of 400 pixels
 	frame = vs.read()
 	frame = imutils.resize(frame, width=400)
- 
+
 	# grab the frame dimensions and convert it to a blob
 	(h, w) = frame.shape[:2]
 	blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
 		(300, 300), (104.0, 177.0, 123.0))
- 
+
 	# pass the blob through the network and obtain the detections and
 	# predictions
 	net.setInput(blob)
@@ -64,18 +64,18 @@ while True:
 		# object
 		box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
 		(startX, startY, endX, endY) = box.astype("int")
-		
+
 		cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
 		sock.send(startX)
-		sock.send(endX)
 		sock.send(startY)
+		sock.send(endX)
 		sock.send(endY)
-		
+
 	# show the output frame
 	cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
- 
+
 	# if the `q` key was pressed, break from the loop
 	if key == ord("q"):
 		break
