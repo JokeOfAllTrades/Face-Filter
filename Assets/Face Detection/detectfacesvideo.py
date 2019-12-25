@@ -29,7 +29,7 @@ print("[INFO] starting video stream...")
 vs = VideoStream(src=0).start()
 time.sleep(2.0)
 
-sockImage = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockImage.connect(('localhost', 5057))
 sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockRect.connect(('localhost', 5065))
@@ -74,8 +74,8 @@ while True:
         sockRect.send(endX)
         sockRect.send(endY)
     
-    frame = cv2.imencode('.png', frame)
-    sockImage.sendall(frame)
+    ret, frameBuf = cv2.imencode('.jpg', frame)
+    sockImage.sendall(frameBuf)
     # show the output frame
     #cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
