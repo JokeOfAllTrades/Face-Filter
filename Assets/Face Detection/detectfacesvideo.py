@@ -29,10 +29,10 @@ print("[INFO] starting video stream...")
 vs = VideoStream(src=0).start()
 time.sleep(2.0)
 
+sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sockRect.connect(('localhost', 5056))
 sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockImage.connect(('localhost', 5057))
-sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sockRect.connect(('localhost', 5065))
 
 # loop over the frames from the video stream
 while True:
@@ -67,17 +67,14 @@ while True:
         box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
         (startX, startY, endX, endY) = box.astype("int")
 
-        #cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+        cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-        sockRect.send(startX)
-        sockRect.send(startY)
-        sockRect.send(endX)
-        sockRect.send(endY)
+        sockRect.sendall( [startX,startY,endX,endY] )
     
-    ret, frameBuf = cv2.imencode('.jpg', frame)
-    sockImage.sendall(frameBuf)
+    ret, frameBuff = cv2.imencode('.jpg', frame)
+    sockImage.sendall(frameBuff)
     # show the output frame
-    #cv2.imshow("Frame", frame)
+    # cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
 
     # if the `q` key was pressed, break from the loop
