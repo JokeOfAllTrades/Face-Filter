@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -6,8 +6,6 @@ using System.Threading;
 using System.IO;
 using System.Drawing;
 using System.Diagnostics;
-
-
 
 public class CameraController : MonoBehaviour
 {
@@ -24,26 +22,32 @@ public class CameraController : MonoBehaviour
     private Texture2D flatScreen;
     private class PythonController : Process
     {
-
+        // is this class used at all?
     }
-
-
+    
     void Start()
     {
         dataPort = 5056;
         imagePort = 5057;
         flatScreen = new Texture2D(400, 300);
-        InitUDP();
         plane = GameObject.Find("Plane");
+        
+        InitUDP();
     }
 
     private void InitUDP()
     {
+        // if this needs to be commented in and out frequently, consider making it configurable
+        // instead of needing recompilation. if this needs to be commented out permanently, consider
+        // removing it outright
+        
         /*
         recieveDataThread = new Thread(new ThreadStart(ReceiveData));
         recieveDataThread.IsBackground = true;
         recieveDataThread.Start();
         */
+        
+        // really consider using async stuff here
         recieveImageThread = new Thread(new ThreadStart(ReceiveImage));
         recieveImageThread.IsBackground = true;
         recieveImageThread.Start();
@@ -51,23 +55,16 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveData()
     {
-        UdpClient client = new UdpClient(dataPort);
-
-        IPEndPoint endpoint = null;
-        try
-        {
-            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), dataPort);
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.Log(e.ToString());
-        }
-
+        // is this method vestigial code? consider removing it, see above
+        var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
+        
+        // instead of while(true), consider making these threads cancellable
+        // while (Running) with a boolean Running property might be a good start
         while (true)
         {
             try
             {
-                byte[] pieces = client.Receive(ref endpoint);
+                byte[] pieces = client.Receive(ref throwaway_ep);
                 sides[0] = pieces[0];
                 sides[1] = pieces[4];
                 sides[2] = pieces[8];
@@ -82,22 +79,19 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveImage()
     {
-        UdpClient client = new UdpClient(imagePort);
-
-        IPEndPoint endpoint = null;
-        try
-        {
-            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), imagePort);
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.Log(e.ToString());
-        }
+        var client = new UdpClient(imagePort);
+        var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
+        
+        // instead of while(true), consider making these threads cancellable
+        // while (Running) with a boolean Running property might be a good start
         while (true)
         {
             try
             {
-                imageData = client.Receive(ref endpoint);
+                // currently, you use datagrams to carry images which limits your largest
+                // image to 65 kilobytes. consider using some sort of length-prefixed protocol
+                // to make it more extensible just in case
+                imageData = client.Receive(ref throwaway_ep);
             }
             catch (Exception e)
             {
@@ -105,30 +99,13 @@ public class CameraController : MonoBehaviour
             }
         }
     }
-
-    private IPEndPoint SetSocket(UdpClient client, int port)
-    {
-        IPEndPoint endpoint = null;
-        try
-        {
-            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), port);
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.Log(e.ToString());
-            return null;
-        }
-
-        return endpoint;
-    }
     //sides[0], sides[1], sides[2], sides[3]
 
     void Update()
     {
         if (imageData != null)
         {
-            
-            ImageConversion.LoadImage(flatScreen,imageData,false);
+            // repeating my vestigial code question
             /*
             DrawSideX(sides[0], sides[2], sides[1]);
             DrawSideX(sides[0], sides[2], sides[3]);
@@ -136,6 +113,8 @@ public class CameraController : MonoBehaviour
             DrawSideY(sides[1], sides[3], sides[2]);
             flatScreen.Apply();
             */
+            
+            ImageConversion.LoadImage(flatScreen,imageData,false);
             plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
         }
 
@@ -147,6 +126,7 @@ public class CameraController : MonoBehaviour
             flatScreen.SetPixel(i, y, UnityEngine.Color.black);
         }
     }
+    
     void DrawSideY(int start, int end, int x)
     {
         for (int i = start; i <= end; i++)
