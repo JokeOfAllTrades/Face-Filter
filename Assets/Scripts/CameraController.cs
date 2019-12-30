@@ -56,6 +56,7 @@ public class CameraController : MonoBehaviour
     private void ReceiveData()
     {
         // is this method vestigial code? consider removing it, see above
+        var client = new UdpClient(dataPort);
         var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
         
         // instead of while(true), consider making these threads cancellable
