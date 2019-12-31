@@ -65,11 +65,11 @@ while True:
         # compute the (x, y)-coordinates of the bounding box for the
         # object
         box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-        (startX, startY, endX, endY) = box.astype("int")
+        (startX, startY, endX, endY) = box.astype("byte")
 
         cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-        sockRect.sendall( [startX,startY,endX,endY] )
+        sockRect.sendall( startX + startY + endX + endY )
     
     ret, frameBuff = cv2.imencode('.jpg', frame)
     sockImage.sendall(frameBuff)
