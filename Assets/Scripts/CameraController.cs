@@ -23,9 +23,10 @@ public class CameraController : MonoBehaviour
     private Texture2D flatScreen;
     private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
     private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
-    private static String pythonCommand = "python \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\detectfacesvideo.py\" " +
-        "--prototxt \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\deploy.prototxt.txt\" " +	
-        "--model \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\res10_300x300_ssd_iter_140000.caffemodel\"";
+    private static String projectDirectory = "C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection";
+    private static String pythonCommand = "python \"" + projectDirectory + "\\detectfacesvideo.py\" " +
+        "--prototxt \"" + projectDirectory + "\\deploy.prototxt.txt\" " +	
+        "--model \"" + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
     private Process process;
 
     void Start()
@@ -93,12 +94,7 @@ public class CameraController : MonoBehaviour
                 // image to 65 kilobytes. consider using some sort of length-prefixed protocol
                 // to make it more extensible just in case
                 byte[] pieces = client.Receive(ref endpoint);
-                /*
-                sides[0] = pieces[0];
-                sides[1] = pieces[4];
-                sides[2] = pieces[8];
-                sides[3] = pieces[12];
-                */
+
                 for (int i = 0; i <= 3; i++)
                 {
                     for (int j = 0; i <= 3; i++)
