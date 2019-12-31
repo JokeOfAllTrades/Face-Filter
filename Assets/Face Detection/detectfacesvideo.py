@@ -9,6 +9,7 @@ import imutils
 import time
 import socket
 import cv2
+import keyboard
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -21,11 +22,9 @@ ap.add_argument("-c", "--confidence", type=float, default=0.5,
 args = vars(ap.parse_args())
 
 # load our serialized model from disk
-print("[INFO] loading model...")
 net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
 
 # initialize the video stream and allow the cammera sensor to warmup
-print("[INFO] starting video stream...")
 vs = VideoStream(src=0).start()
 time.sleep(2.0)
 
@@ -65,24 +64,26 @@ while True:
         # compute the (x, y)-coordinates of the bounding box for the
         # object
         box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-        (startX, startY, endX, endY) = box.astype("byte")
+        (startX, startY, endX, endY) = box.astype("int")
 
         cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-        sockRect.sendall( startX + startY + endX + endY )
+        sockRect.sendall( np.hstack( ( startX, startY,endX, endY ) ) )
     
     ret, frameBuff = cv2.imencode('.jpg', frame)
     sockImage.sendall(frameBuff)
     # show the output frame
     # cv2.imshow("Frame", frame)
-    key = cv2.waitKey(1) & 0xFF
 
     # if the `q` key was pressed, break from the loop
-    if key == ord("q"):
+    if keyboard.is_pressed('q'):
         break
 
 # do a bit of cleanup
 cv2.destroyAllWindows()
 vs.stop()
-sock.shutdown(socket.SHUT_RDWR)
-sock.close()
+sockRect.shutdown(socket.SHUT_RDWR)
+sockRect.close()
+sockImage.shutdown(socket.SHUT_RDWR)
+sockImage.shutdown(socket.SHUT_RDWR)
+# to do close window
