@@ -13,8 +13,6 @@ public class CameraController : MonoBehaviour
 {
     private Thread recieveDataThread;
     private Thread recieveImageThread;
-    private bool dataThreadContinue;
-    private bool imageThreadContinue;
     private static int dataPort = 5056;
     private static int imagePort = 5057;
     private GameObject plane;
@@ -26,18 +24,25 @@ public class CameraController : MonoBehaviour
     private static String pythonCommand = "python \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\detectfacesvideo.py\" " +
         "--prototxt \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\deploy.prototxt.txt\" " +	
         "--model \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\res10_300x300_ssd_iter_140000.caffemodel\"";
-    private Process process;
+
 
     void Start()
     {
+
+        //UnityEngine.Debug.Log(anacondaCommand + "\n");
+        //UnityEngine.Debug.Log(pythonCommand + "\n");
+        //dataPort = ;
+        //imagePort = ;
         plane = GameObject.Find("Plane");
         flatScreen = new Texture2D(400, 300);
         InitiatePython();
-        InitiateThreads();        
+        InitiateThreads();
+        
     }
     private void InitiatePython()
     {
-        process = new Process
+  
+        var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -57,11 +62,11 @@ public class CameraController : MonoBehaviour
                 sw.WriteLine(pythonCommand);
             }
         }
+        process.WaitForExit();
     }
     
     private void InitiateThreads()
     {
-        // really consider using async stuff here
         recieveDataThread = new Thread(new ThreadStart(ReceiveData));
         recieveDataThread.IsBackground = true;
         recieveDataThread.Start();
@@ -73,7 +78,7 @@ public class CameraController : MonoBehaviour
     private void ReceiveData()
     {
         UdpClient client = new UdpClient(dataPort);
-        
+
         IPEndPoint endpoint = null;
         try
         {
@@ -84,27 +89,22 @@ public class CameraController : MonoBehaviour
             UnityEngine.Debug.Log(e.ToString());
         }
 
-        dataThreadContinue = true;
-        while (dataThreadContinue)
+        while (true)
         {
             try
             {
-                // currently, you use datagrams to carry images which limits your largest
-                // image to 65 kilobytes. consider using some sort of length-prefixed protocol
-                // to make it more extensible just in case
                 byte[] pieces = client.Receive(ref endpoint);
-                /*
+                for (int i = 0; i <= 3; i++)
+                {
+                /*                
                 sides[0] = pieces[0];
                 sides[1] = pieces[4];
                 sides[2] = pieces[8];
                 sides[3] = pieces[12];
                 */
-                for (int i = 0; i <= 3; i++)
-                {
-                    for (int j = 0; i <= 3; i++)
-                        sides[i] += pieces[i * 4 + j];
+                    foreach (byte part in pieces)
+                        sides[i] += part;
                 }
-                
             }
             catch (Exception e)
             {
@@ -126,9 +126,7 @@ public class CameraController : MonoBehaviour
         {
             UnityEngine.Debug.Log(e.ToString());
         }
-
-        imageThreadContinue = true;
-        while (imageThreadContinue)
+        while (true)
         {
             try
             {
@@ -141,26 +139,46 @@ public class CameraController : MonoBehaviour
         }
     }
 
+    private IPEndPoint SetSocket(UdpClient client, int port)
+    {
+        IPEndPoint endpoint = null;
+        try
+        {
+            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), port);
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.Log(e.ToString());
+            return null;
+        }
+
+        return endpoint;
+    }
+    //sides[0], sides[1], sides[2], sides[3]
+
     void Update()
     {
         if (imageData != null)
         {
+            
             ImageConversion.LoadImage(flatScreen,imageData,false);
             
             DrawSideX(sides[0], sides[2], sides[1]);
             DrawSideX(sides[0], sides[2], sides[3]);
             DrawSideY(sides[1], sides[3], sides[0]);
             DrawSideY(sides[1], sides[3], sides[2]);
-            flatScreen.Apply();
+            
+            
             plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
         }
-    }
 
+    }
     void DrawSideX(int start, int end, int y)
     {
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(i, y, UnityEngine.Color.black);
+            flatScreen.Apply();
         }
     }
     void DrawSideY(int start, int end, int x)
@@ -168,17 +186,7 @@ public class CameraController : MonoBehaviour
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(x, i, UnityEngine.Color.black);
+            flatScreen.Apply();
         }
-    }
-
-    void OnDestroy()
-    {
-        // Send q to window
-        process.CloseMainWindow();
-        process.Close();
-        process.Dispose();
-
-        dataThreadContinue = false;
-        imageThreadContinue = false;
     }
 }
