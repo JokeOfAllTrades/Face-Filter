@@ -13,37 +13,63 @@ public class CameraController : MonoBehaviour
 {
     private Thread recieveDataThread;
     private Thread recieveImageThread;
-
-    private int dataPort;
-    private int imagePort;
+    private static int dataPort = 5056;
+    private static int imagePort = 5057;
     private GameObject plane;
-    private Rect frame;
     private byte[] sides = new byte[4] { 0, 0, 0, 0 };
     private byte[] imageData;
-    private Image image;
     private Texture2D flatScreen;
-    private class PythonController : Process
-    {
-
-    }
+    private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
+    private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
+    private static String pythonCommand = "python \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\detectfacesvideo.py\" " +
+        "--prototxt \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\deploy.prototxt.txt\" " +	
+        "--model \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\res10_300x300_ssd_iter_140000.caffemodel\"";
 
 
     void Start()
     {
-        dataPort = 5056;
-        imagePort = 5057;
-        flatScreen = new Texture2D(400, 300);
-        InitUDP();
-        plane = GameObject.Find("Plane");
-    }
 
-    private void InitUDP()
+        //UnityEngine.Debug.Log(anacondaCommand + "\n");
+        //UnityEngine.Debug.Log(pythonCommand + "\n");
+        //dataPort = ;
+        //imagePort = ;
+        plane = GameObject.Find("Plane");
+        flatScreen = new Texture2D(400, 300);
+        InitiatePython();
+        InitiateThreads();
+        
+    }
+    private void InitiatePython()
     {
-        /*
+  
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                WorkingDirectory = anacondaDirectory
+            }
+        };
+        process.Start();
+        using (var sw = process.StandardInput)
+        {
+            if (sw.BaseStream.CanWrite)
+            {
+                sw.WriteLine(anacondaCommand);
+                sw.WriteLine(pythonCommand);
+            }
+        }
+        process.WaitForExit();
+    }
+    
+    private void InitiateThreads()
+    {
         recieveDataThread = new Thread(new ThreadStart(ReceiveData));
         recieveDataThread.IsBackground = true;
         recieveDataThread.Start();
-        */
         recieveImageThread = new Thread(new ThreadStart(ReceiveImage));
         recieveImageThread.IsBackground = true;
         recieveImageThread.Start();
@@ -68,10 +94,17 @@ public class CameraController : MonoBehaviour
             try
             {
                 byte[] pieces = client.Receive(ref endpoint);
+                for (int i = 0; i <= 3; i++)
+                {
+                /*                
                 sides[0] = pieces[0];
                 sides[1] = pieces[4];
                 sides[2] = pieces[8];
                 sides[3] = pieces[12];
+                */
+                    foreach (byte part in pieces)
+                        sides[i] += part;
+                }
             }
             catch (Exception e)
             {
@@ -129,13 +162,13 @@ public class CameraController : MonoBehaviour
         {
             
             ImageConversion.LoadImage(flatScreen,imageData,false);
-            /*
+            
             DrawSideX(sides[0], sides[2], sides[1]);
             DrawSideX(sides[0], sides[2], sides[3]);
             DrawSideY(sides[1], sides[3], sides[0]);
             DrawSideY(sides[1], sides[3], sides[2]);
-            flatScreen.Apply();
-            */
+            
+            
             plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
         }
 
@@ -145,6 +178,7 @@ public class CameraController : MonoBehaviour
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(i, y, UnityEngine.Color.black);
+            flatScreen.Apply();
         }
     }
     void DrawSideY(int start, int end, int x)
@@ -152,6 +186,7 @@ public class CameraController : MonoBehaviour
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(x, i, UnityEngine.Color.black);
+            flatScreen.Apply();
         }
     }
 }
