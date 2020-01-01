@@ -82,7 +82,7 @@ public class CameraController : MonoBehaviour
                 // currently, you use datagrams to carry images which limits your largest
                 // image to 65 kilobytes. consider using some sort of length-prefixed protocol
                 // to make it more extensible just in case
-                byte[] pieces = client.Receive(ref endpoint);
+                byte[] pieces = client.Receive(ref throwaway_ep);
 
                 for (int i = 0; i <= 3; i++)
                 {
