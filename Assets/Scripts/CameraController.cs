@@ -7,8 +7,6 @@ using System.IO;
 using System.Drawing;
 using System.Diagnostics;
 
-
-
 public class CameraController : MonoBehaviour
 {
     private Thread recieveDataThread;
@@ -28,6 +26,7 @@ public class CameraController : MonoBehaviour
         "--prototxt \"" + projectDirectory + "\\deploy.prototxt.txt\" " +	
         "--model \"" + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
     private Process process;
+   
 
     void Start()
     {
@@ -46,16 +45,18 @@ public class CameraController : MonoBehaviour
                 RedirectStandardInput = true,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
-                WorkingDirectory = anacondaDirectory
+                CreateNoWindow = true,
+                WorkingDirectory = anacondaDirectory,
             }
         };
         process.Start();
-        using (var sw = process.StandardInput)
+
+        using (var inputStream = process.StandardInput)
         {
-            if (sw.BaseStream.CanWrite)
+            if (inputStream.BaseStream.CanWrite)
             {
-                sw.WriteLine(anacondaCommand);
-                sw.WriteLine(pythonCommand);
+                inputStream.WriteLine(anacondaCommand);
+                inputStream.WriteLine(pythonCommand);
             }
         }
     }
@@ -94,12 +95,15 @@ public class CameraController : MonoBehaviour
                 // image to 65 kilobytes. consider using some sort of length-prefixed protocol
                 // to make it more extensible just in case
                 byte[] pieces = client.Receive(ref endpoint);
-
+                
                 for (int i = 0; i <= 3; i++)
                 {
                     for (int j = 0; i <= 3; i++)
                         sides[i] += pieces[i * 4 + j];
+                    //UnityEngine.Debug.Log("Side: " + i + "; value: " + sides[i]);
+                    //UnityEngine.Debug.Log("\n");
                 }
+                
                 
             }
             catch (Exception e)
@@ -169,11 +173,6 @@ public class CameraController : MonoBehaviour
 
     void OnDestroy()
     {
-        // Send q to window
-        process.CloseMainWindow();
-        process.Close();
-        process.Dispose();
-
         dataThreadContinue = false;
         imageThreadContinue = false;
     }

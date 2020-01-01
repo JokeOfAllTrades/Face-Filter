@@ -68,7 +68,10 @@ while True:
 
         cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-        sockRect.sendall( np.hstack( ( startX, startY,endX, endY ) ) )
+
+
+
+        sockRect.sendall( np.array( (struct.pack('<i',startX),struct.pack('<i',startY),struct.pack('<i',endX), struct.pack('<i',endY)) ) )
     
     ret, frameBuff = cv2.imencode('.jpg', frame)
     sockImage.sendall(frameBuff)
@@ -86,4 +89,3 @@ sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
 sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.shutdown(socket.SHUT_RDWR)
-# to do close window
