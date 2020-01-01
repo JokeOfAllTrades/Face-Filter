@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -6,8 +6,6 @@ using System.Threading;
 using System.IO;
 using System.Drawing;
 using System.Diagnostics;
-
-
 
 public class CameraController : MonoBehaviour
 {
@@ -73,18 +71,9 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveData()
     {
-        UdpClient client = new UdpClient(dataPort);
+        var client = new UdpClient(dataPort);
+        var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
         
-        IPEndPoint endpoint = null;
-        try
-        {
-            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), dataPort);
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.Log(e.ToString());
-        }
-
         dataThreadContinue = true;
         while (dataThreadContinue)
         {
@@ -93,7 +82,7 @@ public class CameraController : MonoBehaviour
                 // currently, you use datagrams to carry images which limits your largest
                 // image to 65 kilobytes. consider using some sort of length-prefixed protocol
                 // to make it more extensible just in case
-                byte[] pieces = client.Receive(ref endpoint);
+                byte[] pieces = client.Receive(ref throwaway_ep);
 
                 for (int i = 0; i <= 3; i++)
                 {
@@ -111,24 +100,18 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveImage()
     {
-        UdpClient client = new UdpClient(imagePort);
-
-        IPEndPoint endpoint = null;
-        try
-        {
-            endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), imagePort);
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.Log(e.ToString());
-        }
-
+        var client = new UdpClient(imagePort);
+        var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
+        
         imageThreadContinue = true;
         while (imageThreadContinue)
         {
             try
             {
-                imageData = client.Receive(ref endpoint);
+                // currently, you use datagrams to carry images which limits your largest
+                // image to 65 kilobytes. consider using some sort of length-prefixed protocol
+                // to make it more extensible just in case
+                imageData = client.Receive(ref throwaway_ep);
             }
             catch (Exception e)
             {
@@ -159,6 +142,7 @@ public class CameraController : MonoBehaviour
             flatScreen.SetPixel(i, y, UnityEngine.Color.black);
         }
     }
+    
     void DrawSideY(int start, int end, int x)
     {
         for (int i = start; i <= end; i++)
