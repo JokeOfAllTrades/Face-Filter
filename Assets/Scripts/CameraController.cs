@@ -11,6 +11,8 @@ public class CameraController : MonoBehaviour
 {
     private Thread recieveDataThread;
     private Thread recieveImageThread;
+    private bool dataThreadContinue;
+    private bool imageThreadContinue;
     private static int dataPort = 5056;
     private static int imagePort = 5057;
     private GameObject plane;
@@ -19,28 +21,22 @@ public class CameraController : MonoBehaviour
     private Texture2D flatScreen;
     private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
     private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
-    private static String pythonCommand = "python \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\detectfacesvideo.py\" " +
-        "--prototxt \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\deploy.prototxt.txt\" " +	
-        "--model \"C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection\\res10_300x300_ssd_iter_140000.caffemodel\"";
-
+    private static String projectDirectory = "C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection";
+    private static String pythonCommand = "python \"" + projectDirectory + "\\detectfacesvideo.py\" " +
+        "--prototxt \"" + projectDirectory + "\\deploy.prototxt.txt\" " +	
+        "--model \"" + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
+    private Process process;
 
     void Start()
     {
-
-        //UnityEngine.Debug.Log(anacondaCommand + "\n");
-        //UnityEngine.Debug.Log(pythonCommand + "\n");
-        //dataPort = ;
-        //imagePort = ;
         plane = GameObject.Find("Plane");
         flatScreen = new Texture2D(400, 300);
         InitiatePython();
-        InitiateThreads();
-        
+        InitiateThreads();        
     }
     private void InitiatePython()
     {
-  
-        var process = new Process
+        process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -60,11 +56,11 @@ public class CameraController : MonoBehaviour
                 sw.WriteLine(pythonCommand);
             }
         }
-        process.WaitForExit();
     }
     
     private void InitiateThreads()
     {
+        // really consider using async stuff here
         recieveDataThread = new Thread(new ThreadStart(ReceiveData));
         recieveDataThread.IsBackground = true;
         recieveDataThread.Start();
@@ -75,28 +71,25 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveData()
     {
-        // is this method vestigial code? consider removing it, see above
         var client = new UdpClient(dataPort);
         var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
         
-        // instead of while(true), consider making these threads cancellable
-        // while (Running) with a boolean Running property might be a good start
-        while (true)
+        dataThreadContinue = true;
+        while (dataThreadContinue)
         {
             try
             {
+                // currently, you use datagrams to carry images which limits your largest
+                // image to 65 kilobytes. consider using some sort of length-prefixed protocol
+                // to make it more extensible just in case
                 byte[] pieces = client.Receive(ref endpoint);
+
                 for (int i = 0; i <= 3; i++)
                 {
-                /*                
-                sides[0] = pieces[0];
-                sides[1] = pieces[4];
-                sides[2] = pieces[8];
-                sides[3] = pieces[12];
-                */
-                    foreach (byte part in pieces)
-                        sides[i] += part;
+                    for (int j = 0; i <= 3; i++)
+                        sides[i] += pieces[i * 4 + j];
                 }
+                
             }
             catch (Exception e)
             {
@@ -110,9 +103,8 @@ public class CameraController : MonoBehaviour
         var client = new UdpClient(imagePort);
         var throwaway_ep = new IPEndPoint(IPAddress.Any, 0);
         
-        // instead of while(true), consider making these threads cancellable
-        // while (Running) with a boolean Running property might be a good start
-        while (true)
+        imageThreadContinue = true;
+        while (imageThreadContinue)
         {
             try
             {
@@ -127,31 +119,27 @@ public class CameraController : MonoBehaviour
             }
         }
     }
-    //sides[0], sides[1], sides[2], sides[3]
 
     void Update()
     {
         if (imageData != null)
         {
-            
             ImageConversion.LoadImage(flatScreen,imageData,false);
             
             DrawSideX(sides[0], sides[2], sides[1]);
             DrawSideX(sides[0], sides[2], sides[3]);
             DrawSideY(sides[1], sides[3], sides[0]);
             DrawSideY(sides[1], sides[3], sides[2]);
-            
-            
+            flatScreen.Apply();
             plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
         }
-
     }
+
     void DrawSideX(int start, int end, int y)
     {
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(i, y, UnityEngine.Color.black);
-            flatScreen.Apply();
         }
     }
     
@@ -160,7 +148,17 @@ public class CameraController : MonoBehaviour
         for (int i = start; i <= end; i++)
         {
             flatScreen.SetPixel(x, i, UnityEngine.Color.black);
-            flatScreen.Apply();
         }
+    }
+
+    void OnDestroy()
+    {
+        // Send q to window
+        process.CloseMainWindow();
+        process.Close();
+        process.Dispose();
+
+        dataThreadContinue = false;
+        imageThreadContinue = false;
     }
 }
