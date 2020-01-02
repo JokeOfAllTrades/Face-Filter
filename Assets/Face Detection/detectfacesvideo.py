@@ -10,6 +10,7 @@ import time
 import socket
 import cv2
 import keyboard
+import struct
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -33,6 +34,7 @@ sockRect.connect(('localhost', 5056))
 sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockImage.connect(('localhost', 5057))
 
+print("Start")
 # loop over the frames from the video stream
 while True:
     # grab the frame from the threaded video stream and resize it
@@ -68,9 +70,6 @@ while True:
 
         cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-
-
-
         sockRect.sendall( np.array( (struct.pack('<i',startX),struct.pack('<i',startY),struct.pack('<i',endX), struct.pack('<i',endY)) ) )
     
     ret, frameBuff = cv2.imencode('.jpg', frame)
@@ -89,3 +88,4 @@ sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
 sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.shutdown(socket.SHUT_RDWR)
+print("End")

@@ -44,21 +44,20 @@ public class CameraController : MonoBehaviour
                 FileName = "cmd.exe",
                 RedirectStandardInput = true,
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true,
+                //RedirectStandardOutput = true,
+                //CreateNoWindow = true,
                 WorkingDirectory = anacondaDirectory,
             }
         };
         process.Start();
 
-        using (var inputStream = process.StandardInput)
+        var inputStream = process.StandardInput;
+        if (inputStream.BaseStream.CanWrite)
         {
-            if (inputStream.BaseStream.CanWrite)
-            {
-                inputStream.WriteLine(anacondaCommand);
-                inputStream.WriteLine(pythonCommand);
-            }
+            inputStream.WriteLine(anacondaCommand);
+            inputStream.WriteLine(pythonCommand);
         }
+        
     }
     
     private void InitiateThreads()
@@ -173,6 +172,9 @@ public class CameraController : MonoBehaviour
 
     void OnDestroy()
     {
+        StreamWriter standardInput = process.StandardInput;
+        standardInput.WriteLine('q');
+        standardInput.Dispose();
         dataThreadContinue = false;
         imageThreadContinue = false;
     }
