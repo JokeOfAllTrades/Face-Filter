@@ -15,6 +15,7 @@ public class CameraController : MonoBehaviour
     private bool imageThreadContinue;
     private static int dataPort = 5056;
     private static int imagePort = 5057;
+    private static int destroyPort = 5058;
     private GameObject plane;
     private byte[] sides = new byte[4] { 0, 0, 0, 0 };
     private byte[] imageData;
@@ -26,14 +27,31 @@ public class CameraController : MonoBehaviour
         "--prototxt \"" + projectDirectory + "\\deploy.prototxt.txt\" " +	
         "--model \"" + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
     private Process process;
+    private UdpClient killSwitch;
    
 
     void Start()
     {
         plane = GameObject.Find("Plane");
         flatScreen = new Texture2D(400, 300);
+        killSwitch = new UdpClient();
         InitiatePython();
-        InitiateThreads();        
+        InitiateThreads();
+        InitiateConnection();
+    }
+
+    void InitiateConnection()
+    {
+        IPEndPoint endpoint = null;
+        try
+        {
+            endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), destroyPort);
+            killSwitch.Connect(endpoint);
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.Log(e.ToString());
+        }
     }
     private void InitiatePython()
     {
@@ -101,15 +119,14 @@ public class CameraController : MonoBehaviour
                         sides[i] += pieces[i * 4 + j];
                     //UnityEngine.Debug.Log("Side: " + i + "; value: " + sides[i]);
                     //UnityEngine.Debug.Log("\n");
-                }
-                
-                
+                }       
             }
             catch (Exception e)
             {
                 UnityEngine.Debug.Log(e.ToString());
             }
         }
+        client.Dispose();
     }
 
     private void ReceiveImage()
@@ -138,10 +155,11 @@ public class CameraController : MonoBehaviour
                 UnityEngine.Debug.Log(e.ToString());
             }
         }
+        client.Dispose();
     }
-
     void Update()
     {
+        killSwitch.Send(new[]{(byte)0}, 1);
         if (imageData != null)
         {
             ImageConversion.LoadImage(flatScreen,imageData,false);
@@ -172,10 +190,10 @@ public class CameraController : MonoBehaviour
 
     void OnDestroy()
     {
-        StreamWriter standardInput = process.StandardInput;
-        standardInput.WriteLine('q');
-        standardInput.Dispose();
+        byte[] q = { (byte)'q' };
+        killSwitch.Send(q,1);
         dataThreadContinue = false;
         imageThreadContinue = false;
+        killSwitch.Dispose();
     }
 }

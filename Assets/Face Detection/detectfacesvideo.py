@@ -33,7 +33,8 @@ sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockRect.connect(('localhost', 5056))
 sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockImage.connect(('localhost', 5057))
-
+sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sockDeath.bind(('localhost', 5058))
 print("Start")
 # loop over the frames from the video stream
 while True:
@@ -78,7 +79,9 @@ while True:
     # cv2.imshow("Frame", frame)
 
     # if the `q` key was pressed, break from the loop
-    if keyboard.is_pressed('q'):
+    key = sockDeath.recv(1);
+    print(key)
+    if key == b'q':
         break
 
 # do a bit of cleanup
@@ -87,5 +90,7 @@ vs.stop()
 sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
 sockImage.shutdown(socket.SHUT_RDWR)
-sockImage.shutdown(socket.SHUT_RDWR)
+sockImage.close()
+sockDeath.shutdown(socket.SHUT_RDWR)
+sockDeath.close()
 print("End")
