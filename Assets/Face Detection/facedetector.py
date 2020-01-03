@@ -9,8 +9,8 @@ import imutils
 import time
 import socket
 import cv2
-import keyboard
 import struct
+import sys
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -35,6 +35,7 @@ sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockImage.connect(('localhost', 5057))
 sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockDeath.bind(('localhost', 5058))
+sockDeath.setblocking(0)
 print("Start")
 # loop over the frames from the video stream
 while True:
@@ -79,8 +80,13 @@ while True:
     # cv2.imshow("Frame", frame)
 
     # if the `q` key was pressed, break from the loop
-    key = sockDeath.recv(1);
-    print(key)
+    key = None
+    try:
+        key = sockDeath.recv(1);
+    except:
+        pass
+    if key == None:
+        continue
     if key == b'q':
         break
 
@@ -94,3 +100,4 @@ sockImage.close()
 sockDeath.shutdown(socket.SHUT_RDWR)
 sockDeath.close()
 print("End")
+sys.exit()

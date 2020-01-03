@@ -23,9 +23,10 @@ public class CameraController : MonoBehaviour
     private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
     private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
     private static String projectDirectory = "C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection";
-    private static String pythonCommand = "python \"" + projectDirectory + "\\detectfacesvideo.py\" " +
-        "--prototxt \"" + projectDirectory + "\\deploy.prototxt.txt\" " +	
-        "--model \"" + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
+    private static String pythonCommand = "python \"" 
+        + projectDirectory + "\\facedetector.py\" " + "--prototxt \"" 
+        + projectDirectory + "\\deploy.prototxt.txt\" " + "--model \"" 
+        + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
     private Process process;
     private UdpClient killSwitch;
    
@@ -60,6 +61,7 @@ public class CameraController : MonoBehaviour
             StartInfo = new ProcessStartInfo
             {
                 FileName = "cmd.exe",
+                Arguments = "/k",
                 RedirectStandardInput = true,
                 UseShellExecute = false,
                 //RedirectStandardOutput = true,
@@ -75,7 +77,7 @@ public class CameraController : MonoBehaviour
             inputStream.WriteLine(anacondaCommand);
             inputStream.WriteLine(pythonCommand);
         }
-        
+        Thread.Sleep(6000);
     }
     
     private void InitiateThreads()
@@ -159,7 +161,6 @@ public class CameraController : MonoBehaviour
     }
     void Update()
     {
-        killSwitch.Send(new[]{(byte)0}, 1);
         if (imageData != null)
         {
             ImageConversion.LoadImage(flatScreen,imageData,false);
@@ -195,5 +196,7 @@ public class CameraController : MonoBehaviour
         dataThreadContinue = false;
         imageThreadContinue = false;
         killSwitch.Dispose();
+        process.Close();
+        process.Dispose();
     }
 }
