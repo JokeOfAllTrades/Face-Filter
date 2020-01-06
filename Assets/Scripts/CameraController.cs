@@ -7,6 +7,7 @@ using System.IO;
 using System.Drawing;
 using System.Diagnostics;
 
+
 public class CameraController : MonoBehaviour
 {
     private Thread recieveDataThread;
@@ -17,7 +18,7 @@ public class CameraController : MonoBehaviour
     private static int imagePort = 5057;
     private static int destroyPort = 5058;
     private GameObject plane;
-    private byte[] sides = new byte[4] { 0, 0, 0, 0 };
+    private int[] sides = new int[4] { 0, 0, 0, 0 };
     private byte[] imageData;
     private Texture2D flatScreen;
     private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
@@ -37,8 +38,9 @@ public class CameraController : MonoBehaviour
         flatScreen = new Texture2D(400, 300);
         killSwitch = new UdpClient();
         InitiatePython();
-        InitiateThreads();
         InitiateConnection();
+        //Thread.Sleep(20000);
+        InitiateThreads();
     }
 
     void InitiateConnection()
@@ -77,7 +79,7 @@ public class CameraController : MonoBehaviour
             inputStream.WriteLine(anacondaCommand);
             inputStream.WriteLine(pythonCommand);
         }
-        Thread.Sleep(6000);
+
     }
     
     private void InitiateThreads()
@@ -93,6 +95,7 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveData()
     {
+        
         UdpClient client = new UdpClient(dataPort);
         
         IPEndPoint endpoint = null;
@@ -108,23 +111,27 @@ public class CameraController : MonoBehaviour
         dataThreadContinue = true;
         while (dataThreadContinue)
         {
+            sides = new int[4] { 0, 0, 0, 0 };
             try
             {
                 // currently, you use datagrams to carry images which limits your largest
                 // image to 65 kilobytes. consider using some sort of length-prefixed protocol
                 // to make it more extensible just in case
-                byte[] pieces = client.Receive(ref endpoint);
                 
                 for (int i = 0; i <= 3; i++)
                 {
-                    for (int j = 0; i <= 3; i++)
-                        sides[i] += pieces[i * 4 + j];
-                    //UnityEngine.Debug.Log("Side: " + i + "; value: " + sides[i]);
-                    //UnityEngine.Debug.Log("\n");
-                }       
+                    var pieces = client.Receive(ref endpoint);
+                    for (int j = 0; j <= pieces.Length - 1; j++)
+                    {
+                        sides[i] += (int)pieces[j] * (int)Mathf.Pow(16, j * 2);                        
+                    }
+                    UnityEngine.Debug.Log(sides[i]);
+                }
+                UnityEngine.Debug.Log("\n");
             }
             catch (Exception e)
             {
+                Thread.ResetAbort();
                 UnityEngine.Debug.Log(e.ToString());
             }
         }
@@ -196,7 +203,9 @@ public class CameraController : MonoBehaviour
         dataThreadContinue = false;
         imageThreadContinue = false;
         killSwitch.Dispose();
+        process.CloseMainWindow();
         process.Close();
+        
         process.Dispose();
     }
 }
