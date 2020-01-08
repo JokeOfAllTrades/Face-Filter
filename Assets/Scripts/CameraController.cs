@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEditor;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -18,6 +19,7 @@ public class CameraController : MonoBehaviour
     private static int imagePort = 5057;
     private static int destroyPort = 5058;
     private GameObject plane;
+    private GameObject mask;
     private int[] sides = new int[4] { 0, 0, 0, 0 };
     private byte[] imageData;
     private Texture2D flatScreen;
@@ -35,11 +37,11 @@ public class CameraController : MonoBehaviour
     void Start()
     {
         plane = GameObject.Find("Plane");
+        mask = (GameObject)AssetDatabase.LoadAssetAtPath("Assets\\Sprites\\cod.png", typeof(GameObject));
         flatScreen = new Texture2D(400, 300);
         killSwitch = new UdpClient();
         InitiatePython();
         InitiateConnection();
-        //Thread.Sleep(20000);
         InitiateThreads();
     }
 
@@ -125,9 +127,7 @@ public class CameraController : MonoBehaviour
                     {
                         sides[i] += (int)pieces[j] * (int)Mathf.Pow(16, j * 2);                        
                     }
-                    UnityEngine.Debug.Log(sides[i]);
                 }
-                UnityEngine.Debug.Log("\n");
             }
             catch (Exception e)
             {
@@ -166,33 +166,14 @@ public class CameraController : MonoBehaviour
         }
         client.Dispose();
     }
+
     void Update()
     {
         if (imageData != null)
         {
             ImageConversion.LoadImage(flatScreen,imageData,false);
-            
-            DrawSideX(sides[0], sides[2], sides[1]);
-            DrawSideX(sides[0], sides[2], sides[3]);
-            DrawSideY(sides[1], sides[3], sides[0]);
-            DrawSideY(sides[1], sides[3], sides[2]);
-            flatScreen.Apply();
-            plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
-        }
-    }
 
-    void DrawSideX(int start, int end, int y)
-    {
-        for (int i = start; i <= end; i++)
-        {
-            flatScreen.SetPixel(i, y, UnityEngine.Color.black);
-        }
-    }
-    void DrawSideY(int start, int end, int x)
-    {
-        for (int i = start; i <= end; i++)
-        {
-            flatScreen.SetPixel(x, i, UnityEngine.Color.black);
+            plane.GetComponent<Renderer>().material.mainTexture = flatScreen;
         }
     }
 

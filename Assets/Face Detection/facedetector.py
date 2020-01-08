@@ -36,7 +36,7 @@ sockImage.connect(('localhost', 5057))
 sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockDeath.bind(('localhost', 5058))
 sockDeath.setblocking(0)
-#print("Start")
+print("Start")
 # loop over the frames from the video stream
 while True:
 	# grab the frame from the threaded video stream and resize it
@@ -69,15 +69,6 @@ while True:
 		# object
 		box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
 		(startX, startY, endX, endY) = box.astype("int")
-		
-		print(startX)
-		#print(np.array((struct.pack('<i',startX))))
-		print(startY)
-		#print(np.array((struct.pack('<i',startY))))
-		print(endX)
-		#print(np.array((struct.pack('<i',endX))))
-		print(endY)
-		#print(np.array((struct.pack('<i',endY))))
 
 		#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
@@ -111,5 +102,5 @@ sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.close()
 sockDeath.shutdown(socket.SHUT_RDWR)
 sockDeath.close()
-#print("End")
+print("End")
 sys.exit()
