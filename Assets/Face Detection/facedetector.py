@@ -70,7 +70,7 @@ while True:
 		box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
 		(startX, startY, endX, endY) = box.astype("int")
 
-		#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+		cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
 		sockRect.send( np.array((struct.pack('<i',startX))) )
 		sockRect.send( np.array((struct.pack('<i',startY))) )
