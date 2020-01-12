@@ -11,26 +11,32 @@ using System.Diagnostics;
 
 
 public class CameraController : MonoBehaviour
-{
+{   
+    // threads and cancels: image thread gets image data, data thread gets a square the face fits into
     private Thread recieveDataThread;
     private Thread recieveImageThread;
     private bool dataThreadContinue;
     private bool imageThreadContinue;
     private static int dataPort = 5056;
     private static int imagePort = 5057;
+    // port that helps shut down the python process
     private static int destroyPort = 5058;
+    // planeScreen screen holds the texture the camera transmits to planeOverley holds the texture of what ever images fit on top of it
     private GameObject planeScreen;
     private GameObject planeOverley;
     private Camera mainCamera;
     private float pixelToUnitFactor;
+    // used to adjust the y value of the mask to fit the face
     public float yOffset = 3.42f;
+    // the middle point of the camera screen
     private float middlePixel = 150;
+    // the difference between the python script's x = 0 and c sharp's
     private float xGap = 50;
-    private Vector3 offset;
     private Texture2D mask;
     private float baseMaskWidth;
     private float baseMaskHeight;
     private Texture2D flatScreen;
+    // used to hold the data sent by the data thread
     private int[] sides;
     private byte[] imageData;
     private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
@@ -40,9 +46,10 @@ public class CameraController : MonoBehaviour
         + projectDirectory + "\\facedetector.py\" " + "--prototxt \""
         + projectDirectory + "\\deploy.prototxt.txt\" " + "--model \""
         + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
+    // the process used to launch the python script
     private Process process;
+    // used to terminate the python script
     private UdpClient killSwitch;
-
 
     void Start()
     {
@@ -52,7 +59,6 @@ public class CameraController : MonoBehaviour
         baseMaskHeight = planeOverley.GetComponent<Transform>().localScale.y;
         mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
         pixelToUnitFactor = mainCamera.orthographicSize * 2 / mainCamera.pixelHeight;
-        offset = new Vector3(0,yOffset,0);
         //planeOverley.GetComponent<Renderer>().enabled = false;
         //flat screen should be converted to a render texture and the image data should be sent to the camera
         flatScreen = new Texture2D(400, 300);
@@ -63,6 +69,7 @@ public class CameraController : MonoBehaviour
         InitiateThreads();
     }
 
+    // connects to the python port listening for the quit command
     void InitiateConnection()
     {
         IPEndPoint endpoint = null;
@@ -76,6 +83,8 @@ public class CameraController : MonoBehaviour
             UnityEngine.Debug.Log(e.ToString());
         }
     }
+
+    // lahnches the python script
     private void InitiatePython()
     {
         process = new Process
@@ -102,6 +111,7 @@ public class CameraController : MonoBehaviour
 
     }
 
+    // starts the listener threads
     private void InitiateThreads()
     {
         // really consider using async stuff here
@@ -115,7 +125,6 @@ public class CameraController : MonoBehaviour
 
     private void ReceiveData()
     {
-
         UdpClient client = new UdpClient(dataPort);
         sides = new int[4] { 150, 150, 150, 150 };
         IPEndPoint endpoint = null;
@@ -125,12 +134,14 @@ public class CameraController : MonoBehaviour
         }
         catch (Exception e)
         {
+            Thread.ResetAbort();
             UnityEngine.Debug.Log(e.ToString());
         }
 
         dataThreadContinue = true;
         while (dataThreadContinue)
         {
+            // holds a local copy of the sides array
             int[] oldSides = new int[4] { 0, 0, 0, 0 };
             try
             {
@@ -140,6 +151,7 @@ public class CameraController : MonoBehaviour
 
                 for (int i = 0; i <= 3; i++)
                 {
+                    // each side is made up by adding four bytes.  each byte is multiplied by a factor of 16^(j x 2)
                     var pieces = client.Receive(ref endpoint);
                     for (int j = 0; j <= pieces.Length - 1; j++)
                     {
@@ -168,6 +180,7 @@ public class CameraController : MonoBehaviour
         }
         catch (Exception e)
         {
+            Thread.ResetAbort();
             UnityEngine.Debug.Log(e.ToString());
         }
 
@@ -180,6 +193,7 @@ public class CameraController : MonoBehaviour
             }
             catch (Exception e)
             {
+                Thread.ResetAbort();
                 UnityEngine.Debug.Log(e.ToString());
             }
         }
@@ -224,9 +238,9 @@ public class CameraController : MonoBehaviour
 
     void Update()
     {
-        offset = new Vector3(0f, yOffset, 0f);
         if (imageData != null)
         {
+            // triggers only after sides has been initialized
             if (sides != null && sides[0] != 150 && sides[2] != 150)
             {
                 SetMask(sides, planeOverley.GetComponent<Transform>());
@@ -239,8 +253,10 @@ public class CameraController : MonoBehaviour
 
     void OnDestroy()
     {
+        // cancels threads
         dataThreadContinue = false;
         imageThreadContinue = false;
+        // sends quit signal to python and disposes of remaining objects
         byte[] q = { (byte)'q' };
         killSwitch.Send(q,1);
         killSwitch.Dispose();
