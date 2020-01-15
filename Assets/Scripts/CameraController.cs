@@ -18,6 +18,7 @@ namespace LukeCorp.FaceFilter.SpaceName
         private Thread recieveImageThread;
         private bool dataThreadContinue = true;
         private bool imageThreadContinue = true;
+        // prevents the data thread from writing when true
         private bool dataThreadLock = false;
         private static int dataPort = 5056;
         private static int imagePort = 5057;
@@ -30,15 +31,15 @@ namespace LukeCorp.FaceFilter.SpaceName
         private float pixelToUnitFactor;
         // used to adjust the y value of the mask to fit the face
         public float yOffset = 3.42f;
-        private float xMiddlePixel = 200;
-        private float yMiddlePixel = 150;
-        private Texture2D mask;
+        private int  xMiddlePixel = 200;
+        private int yMiddlePixel = 150;
         private float baseMaskWidth;
         private float baseMaskHeight;
         private Texture2D flatScreen;
         // used to hold the data sent by the data thread
         private int[] sides;
         private byte[] imageData;
+        // for use by python/anaconda
         private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
         private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
         private static String projectDirectory = "C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection";
@@ -50,7 +51,6 @@ namespace LukeCorp.FaceFilter.SpaceName
         private Process process;
         // used to terminate the python script
         private UdpClient killSwitch;
-        public float factor = 0;
 
         void Start()
         {
@@ -61,29 +61,14 @@ namespace LukeCorp.FaceFilter.SpaceName
             mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
             pixelToUnitFactor = mainCamera.orthographicSize * 2 / mainCamera.pixelHeight;
             planeScreen.transform.localScale = new Vector3(xMiddlePixel * 2 * pixelToUnitFactor / 10, 1, yMiddlePixel * 2 * pixelToUnitFactor / 10);
+            sides = new int[4] { xMiddlePixel, yMiddlePixel, xMiddlePixel, yMiddlePixel };
             planeOverley.GetComponent<Renderer>().enabled = false;
             //flat screen should be converted to a render texture and the image data should be sent to the camera
             flatScreen = new Texture2D(400, 300);
-
             killSwitch = new UdpClient();
             InitiatePython();
             InitiateConnection();
             InitiateThreads();
-        }
-
-        // connects to the python port listening for the quit command
-        void InitiateConnection()
-        {
-            IPEndPoint endpoint = null;
-            try
-            {
-                endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), destroyPort);
-                killSwitch.Connect(endpoint);
-            }
-            catch (Exception e)
-            {
-                UnityEngine.Debug.Log(e.ToString());
-            }
         }
 
         // lahnches the python script
@@ -113,6 +98,21 @@ namespace LukeCorp.FaceFilter.SpaceName
 
         }
 
+        // connects to the python port listening for the quit command
+        void InitiateConnection()
+        {
+            IPEndPoint endpoint = null;
+            try
+            {
+                endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), destroyPort);
+                killSwitch.Connect(endpoint);
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.Log(e.ToString());
+            }
+        }
+
         // starts the listener threads
         private void InitiateThreads()
         {
@@ -129,7 +129,6 @@ namespace LukeCorp.FaceFilter.SpaceName
         {
             UdpClient client = new UdpClient(dataPort);
 
-            sides = new int[4] { 150, 150, 150, 150 };
             IPEndPoint endpoint = null;
             try
             {
@@ -224,39 +223,38 @@ namespace LukeCorp.FaceFilter.SpaceName
             float xMid = (xMin + xMax) / 2;
             float yMid = (yMin + yMax) / 2;
 
-            // Gets the amount we will scale the mask by
-            float faceWidth = Mathf.Abs(xMin - xMax) * 0.25f;
-
-            // Converts the middle to Unity units and flips the y axis
+            // Converts everything to Unity units and flips the y axis
             xMin *= pixelToUnitFactor;
             yMin *= -pixelToUnitFactor;
             xMax *= pixelToUnitFactor;
             yMax *= -pixelToUnitFactor;
             xMid *= pixelToUnitFactor;
-            yMid *= pixelToUnitFactor;
-            faceWidth *= pixelToUnitFactor;
+            yMid *= -pixelToUnitFactor;
+
+            // Gets the amount we will scale the mask by
+            float faceFactor = xMax - xMin;
 
             /*
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(0, 3, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(4, 0, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(-4, 0, 0), UnityEngine.Color.white, 1);
-            UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(0, -3, 0), UnityEngine.Color.white, 1);
-            */        
-
+            UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(0, -3, 0), UnityEngine.Color.white, 1);        
+            
             UnityEngine.Debug.DrawLine(new Vector3(xMin, yMax, 0), new Vector3(xMin, yMin, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMin, 0), new Vector3(xMax, yMax, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMax, 0), new Vector3(xMin, yMax, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMin, yMin, 0), new Vector3(xMax, yMin, 0), UnityEngine.Color.black, 1);
+            */
 
-            // Scales the mask for how for away the face is
-            //maskTransform.localScale = new Vector3(faceWidth * baseMaskWidth, faceWidth * baseMaskHeight, maskTransform.localScale.z);
+            // Scales the mask to the size of the face
+            maskTransform.localScale = new Vector3(faceFactor * baseMaskWidth, faceFactor * baseMaskHeight, maskTransform.localScale.z);
 
             // Places the mask on top of the head instead of the middle
-            //float stretch = (faceWidth * baseMaskHeight - baseMaskHeight) / 2;
-            //yMid = yMid + yOffset;
+            float stretch = (faceFactor * baseMaskHeight - baseMaskHeight) / 2;
+            yMid = yMid + yOffset + stretch;
 
             // Positions the mask based on where the face is
-            //maskTransform.position = new Vector3(xMid, yMid, 0);
+            maskTransform.position = new Vector3(xMid, yMid, 0);
         }
 
         void Update()
@@ -267,7 +265,7 @@ namespace LukeCorp.FaceFilter.SpaceName
                 if (sides != null && sides[0] != 150 && sides[2] != 150)
                 {
                     SetMask(sides, planeOverley.GetComponent<Transform>());
-                    planeScreen.GetComponent<Renderer>().enabled = true;
+                    planeOverley.GetComponent<Renderer>().enabled = true;
                 }
                 ImageConversion.LoadImage(flatScreen, imageData, false);
                 planeScreen.GetComponent<Renderer>().material.mainTexture = flatScreen;
