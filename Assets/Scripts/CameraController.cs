@@ -9,7 +9,7 @@ using System.Drawing;
 using System.Diagnostics;
 
 
-namespace LukeCorp.FaceFilter.SpaceName
+namespace JokeOfAllTrades.FaceFilter.Primary
 {
     public class CameraController : MonoBehaviour
     {
@@ -51,7 +51,8 @@ namespace LukeCorp.FaceFilter.SpaceName
         private Process process;
         // used to terminate the python script
         private UdpClient killSwitch;
-
+        AudioClip sounds;
+        
         void Start()
         {
             planeScreen = GameObject.Find("PlaneScreen");
@@ -64,14 +65,19 @@ namespace LukeCorp.FaceFilter.SpaceName
             sides = new int[4] { xMiddlePixel, yMiddlePixel, xMiddlePixel, yMiddlePixel };
             planeOverley.GetComponent<Renderer>().enabled = false;
             //flat screen should be converted to a render texture and the image data should be sent to the camera
-            flatScreen = new Texture2D(400, 300);
+            flatScreen = new Texture2D(400, 300, TextureFormat.RGBA32, false);
             killSwitch = new UdpClient();
             InitiatePython();
             InitiateConnection();
             InitiateThreads();
+            
+            planeScreen.GetComponent<Renderer>().material.mainTexture = flatScreen;
+            sounds = Microphone.Start("", false, 200, 48000);
+            mainCamera.GetComponent<AudioSource>().clip = sounds;
+            mainCamera.GetComponent<AudioSource>().Play();
         }
 
-        // lahnches the python script
+        // launches the python script
         private void InitiatePython()
         {
             process = new Process
@@ -82,8 +88,8 @@ namespace LukeCorp.FaceFilter.SpaceName
                     Arguments = "/k",
                     RedirectStandardInput = true,
                     UseShellExecute = false,
-                    //RedirectStandardOutput = true,
-                    //CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
                     WorkingDirectory = anacondaDirectory,
                 }
             };
@@ -239,7 +245,7 @@ namespace LukeCorp.FaceFilter.SpaceName
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(4, 0, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(-4, 0, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(0, -3, 0), UnityEngine.Color.white, 1);        
-            
+           
             UnityEngine.Debug.DrawLine(new Vector3(xMin, yMax, 0), new Vector3(xMin, yMin, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMin, 0), new Vector3(xMax, yMax, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMax, 0), new Vector3(xMin, yMax, 0), UnityEngine.Color.black, 1);
@@ -268,12 +274,12 @@ namespace LukeCorp.FaceFilter.SpaceName
                     planeOverley.GetComponent<Renderer>().enabled = true;
                 }
                 ImageConversion.LoadImage(flatScreen, imageData, false);
-                planeScreen.GetComponent<Renderer>().material.mainTexture = flatScreen;
             }
         }
 
         void OnDestroy()
         {
+            Microphone.End("");
             // cancels threads
             dataThreadContinue = false;
             imageThreadContinue = false;
@@ -283,7 +289,6 @@ namespace LukeCorp.FaceFilter.SpaceName
             killSwitch.Dispose();
             process.CloseMainWindow();
             process.Close();
-
             process.Dispose();
         }
     }
