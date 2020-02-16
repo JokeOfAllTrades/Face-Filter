@@ -51,7 +51,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private Process process;
         // used to terminate the python script
         private UdpClient killSwitch;
-        AudioClip sounds;
+        private AudioClip sounds;
+        private WebCamTexture camTexture;
+
         
         void Start()
         {
@@ -64,17 +66,19 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             planeScreen.transform.localScale = new Vector3(xMiddlePixel * 2 * pixelToUnitFactor / 10, 1, yMiddlePixel * 2 * pixelToUnitFactor / 10);
             sides = new int[4] { xMiddlePixel, yMiddlePixel, xMiddlePixel, yMiddlePixel };
             planeOverley.GetComponent<Renderer>().enabled = false;
-            //flat screen should be converted to a render texture and the image data should be sent to the camera
-            flatScreen = new Texture2D(400, 300, TextureFormat.RGBA32, false);
+
+            camTexture = new WebCamTexture(400, 300);
+            camTexture.Play();
+            flatScreen = new Texture2D(camTexture.width, camTexture.height);
+            planeScreen.GetComponent<Renderer>().material.mainTexture = camTexture;
+            sounds = Microphone.Start("", false, 200, 48000);
+            mainCamera.GetComponent<AudioSource>().clip = sounds;
+            mainCamera.GetComponent<AudioSource>().Play();
+
             killSwitch = new UdpClient();
             InitiatePython();
             InitiateConnection();
             InitiateThreads();
-            
-            planeScreen.GetComponent<Renderer>().material.mainTexture = flatScreen;
-            sounds = Microphone.Start("", false, 200, 48000);
-            mainCamera.GetComponent<AudioSource>().clip = sounds;
-            mainCamera.GetComponent<AudioSource>().Play();
         }
 
         // launches the python script
@@ -88,8 +92,8 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                     Arguments = "/k",
                     RedirectStandardInput = true,
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true,
+                    //RedirectStandardOutput = true,
+                    //CreateNoWindow = true,
                     WorkingDirectory = anacondaDirectory,
                 }
             };
@@ -126,7 +130,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             recieveDataThread = new Thread(new ThreadStart(ReceiveData));
             recieveDataThread.IsBackground = true;
             recieveDataThread.Start();
-            recieveImageThread = new Thread(new ThreadStart(ReceiveImage));
+            recieveImageThread = new Thread(new ThreadStart(SendImage));
             recieveImageThread.IsBackground = true;
             recieveImageThread.Start();
         }
@@ -142,7 +146,10 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             }
             catch (Exception e)
             {
-                Thread.ResetAbort();
+                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                {
+                    Thread.ResetAbort();
+                }
                 UnityEngine.Debug.Log(e.ToString());
             }
 
@@ -172,25 +179,32 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                 }
                 catch (Exception e)
                 {
-                    Thread.ResetAbort();
+                    if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                    {
+                        Thread.ResetAbort();
+                    }
                     UnityEngine.Debug.Log(e.ToString());
                 }
             }
             client.Dispose();
         }
 
-        private void ReceiveImage()
+        private void SendImage()
         {
             UdpClient client = new UdpClient(imagePort);
-
+            
             IPEndPoint endpoint = null;
             try
             {
-                endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), imagePort);
+                endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), imagePort);
+                client.Connect(endpoint);
             }
             catch (Exception e)
             {
-                Thread.ResetAbort();
+                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                {
+                    Thread.ResetAbort();
+                }
                 UnityEngine.Debug.Log(e.ToString());
             }
 
@@ -198,11 +212,19 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             {
                 try
                 {
-                    imageData = client.Receive(ref endpoint);
+                    if (imageData != null)
+                    { 
+                        byte[] size = BitConverter.GetBytes(imageData.Length);
+                        client.Send(size, 4);
+                        client.Send(imageData, imageData.Length);
+                    }
                 }
                 catch (Exception e)
                 {
-                    Thread.ResetAbort();
+                    if(Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                    {
+                        Thread.ResetAbort();
+                    }
                     UnityEngine.Debug.Log(e.ToString());
                 }
             }
@@ -265,15 +287,17 @@ namespace JokeOfAllTrades.FaceFilter.Primary
 
         void Update()
         {
-            if (imageData != null)
+            if (camTexture.didUpdateThisFrame == true)
+            { 
+                flatScreen.SetPixels32(camTexture.GetPixels32());
+                imageData = ImageConversion.EncodeToJPG(flatScreen);
+            }
+
+            // triggers only after sides has been initialized
+            if (sides != null && sides[0] != 150 && sides[2] != 150)
             {
-                // triggers only after sides has been initialized
-                if (sides != null && sides[0] != 150 && sides[2] != 150)
-                {
-                    SetMask(sides, planeOverley.GetComponent<Transform>());
-                    planeOverley.GetComponent<Renderer>().enabled = true;
-                }
-                ImageConversion.LoadImage(flatScreen, imageData, false);
+                SetMask(sides, planeOverley.GetComponent<Transform>());
+                planeOverley.GetComponent<Renderer>().enabled = true;
             }
         }
 

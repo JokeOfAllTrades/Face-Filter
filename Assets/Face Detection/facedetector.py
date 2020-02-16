@@ -26,13 +26,13 @@ args = vars(ap.parse_args())
 net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
 
 # initialize the video stream and allow the cammera sensor to warmup
-vs = VideoStream(src=0).start()
+# vs = VideoStream(src=0).start()
 time.sleep(2.0)
 
 sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockRect.connect(('localhost', 5056))
 sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sockImage.connect(('localhost', 5057))
+sockImage.bind(('localhost', 5057))
 sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockDeath.bind(('localhost', 5058))
 sockDeath.setblocking(0)
@@ -41,46 +41,60 @@ print("Start")
 while True:
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 400 pixels
-	frame = vs.read()
-	frame = imutils.resize(frame, width=400)
-
-	# grab the frame dimensions and convert it to a blob
-	(h, w) = frame.shape[:2]
-	blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
-		(300, 300), (104.0, 177.0, 123.0))
-
-	# pass the blob through the network and obtain the detections and
-	# predictions
-	net.setInput(blob)
-	detections = net.forward()
-
-	# loop over the detections
-	for i in range(0, detections.shape[2]):
-		# extract the confidence (i.e., probability) associated with the
-		# prediction
-		confidence = detections[0, 0, i, 2]
-
-		# filter out weak detections by ensuring the `confidence` is
-		# greater than the minimum confidence
-		if confidence < args["confidence"]:
-			continue
-
-		# compute the (x, y)-coordinates of the bounding box for the
-		# object
-		box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-		(startX, startY, endX, endY) = box.astype("int")
-
-		# cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-
-		sockRect.send( np.array((struct.pack('<i',startX))) )
-		sockRect.send( np.array((struct.pack('<i',startY))) )
-		sockRect.send( np.array((struct.pack('<i',endX))) )
-		sockRect.send( np.array((struct.pack('<i',endY))) )
+	
+	try:
+		buffSizeArray = sockImage.recv(4)
+		buffSize = buffSizeArray[0:1] + buffSizeArray[1:2] + buffSizeArray[2:3] + buffSizeArray[3:4]
 		
-	ret, frameBuff = cv2.imencode('.jpg', frame)
-	sockImage.sendall(frameBuff)
-	# show the output frame
-	# cv2.imshow("Frame", frame)
+		buffSizeInt = int.from_bytes(buffSize, byteorder='little')
+		
+		try:
+			frameBuff = sockImage.recv(buffSizeInt)
+			frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
+			frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
+			frame = imutils.resize(frame, width=400)
+
+			# grab the frame dimensions and convert it to a blob
+			(h, w) = frame.shape[:2]
+			blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+				(300, 300), (104.0, 177.0, 123.0))
+
+			# pass the blob through the network and obtain the detections and
+			# predictions
+			net.setInput(blob)
+			detections = net.forward()
+
+			# loop over the detections
+			for i in range(0, detections.shape[2]):
+				# extract the confidence (i.e., probability) associated with the
+				# prediction
+				confidence = detections[0, 0, i, 2]
+
+				# filter out weak detections by ensuring the `confidence` is
+				# greater than the minimum confidence
+				if confidence < args["confidence"]:
+					continue
+
+				# compute the (x, y)-coordinates of the bounding box for the
+				# object
+				box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+				(startX, startY, endX, endY) = box.astype("int")
+
+				# cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+
+				sockRect.send( np.array((struct.pack('<i',startX))) )
+				sockRect.send( np.array((struct.pack('<i',startY))) )
+				sockRect.send( np.array((struct.pack('<i',endX))) )
+				sockRect.send( np.array((struct.pack('<i',endY))) )
+	
+			# show the output frame
+			#cv2.imshow("Frame", frame)
+
+		except Exception as e:
+			print(e)
+			pass
+	except:
+		pass
 
 	# if the `q` key was pressed, break from the loop
 	key = None
@@ -95,7 +109,6 @@ while True:
 
 # do a bit of cleanup
 cv2.destroyAllWindows()
-vs.stop()
 sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
 sockImage.shutdown(socket.SHUT_RDWR)
