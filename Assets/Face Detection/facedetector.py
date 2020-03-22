@@ -11,45 +11,50 @@ import socket
 import cv2
 import struct
 import sys
-
+try:
 # construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--prototxt", required=True,
-	help="path to Caffe 'deploy' prototxt file")
-ap.add_argument("-m", "--model", required=True,
-	help="path to Caffe pre-trained model")
-ap.add_argument("-c", "--confidence", type=float, default=0.5,
-	help="minimum probability to filter weak detections")
-args = vars(ap.parse_args())
+	ap = argparse.ArgumentParser()
+	ap.add_argument("-p", "--prototxt", required=True,
+		help="path to Caffe 'deploy' prototxt file")
+	ap.add_argument("-m", "--model", required=True,
+		help="path to Caffe pre-trained model")
+	ap.add_argument("-c", "--confidence", type=float, default=0.5,
+		help="minimum probability to filter weak detections")
+	args = vars(ap.parse_args())
 
 # load our serialized model from disk
-net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
+	net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
 
-# initialize the video stream and allow the cammera sensor to warmup
-# vs = VideoStream(src=0).start()
-time.sleep(2.0)
+	sockControl = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sockControl.bind(('localhost', 5056))
+	sockControl.listen(0)
+	connection, address = sockControl.accept()
 
-sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sockRect.connect(('localhost', 5056))
-sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sockImage.bind(('localhost', 5057))
-sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sockDeath.bind(('localhost', 5058))
-sockDeath.setblocking(0)
+	sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	sockRect.connect(('localhost', 5057))
+	sockImage = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	sockImage.bind(('localhost', 5058))
+	sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	sockDeath.bind(('localhost', 5059))
+	sockDeath.setblocking(0)
+		
+except Exception as e:
+	exc_type, exc_obj, exc_tb = sys.exc_info()
+	print(e, exc_type, exc_tb.tb_lineno)
+
 print("Start")
 # loop over the frames from the video stream
 while True:
+
 	# grab the frame from the threaded video stream and resize it
-	# to have a maximum width of 400 pixels
-	
+	# to have a maximum width of 300 pixels
 	try:
-		buffSizeArray = sockImage.recv(4)
+		buffSizeArray = connection.recv(4)
 		buffSize = buffSizeArray[0:1] + buffSizeArray[1:2] + buffSizeArray[2:3] + buffSizeArray[3:4]
-		
 		buffSizeInt = int.from_bytes(buffSize, byteorder='little')
 		
 		try:
-			frameBuff = sockImage.recv(buffSizeInt)
+			frameBuff = sockImage.recv(65527)
 			frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
 			frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
 			frame = imutils.resize(frame, width=400)
@@ -80,7 +85,7 @@ while True:
 				box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
 				(startX, startY, endX, endY) = box.astype("int")
 
-				# cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+				#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
 				sockRect.send( np.array((struct.pack('<i',startX))) )
 				sockRect.send( np.array((struct.pack('<i',startY))) )
@@ -91,9 +96,12 @@ while True:
 			#cv2.imshow("Frame", frame)
 
 		except Exception as e:
-			print(e)
-			pass
-	except:
+			exc_type, exc_obj, exc_tb = sys.exc_info()
+			print(e, exc_type, exc_tb.tb_lineno)
+
+	except Exception as e:
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		print(e, exc_type, exc_tb.tb_lineno)
 		pass
 
 	# if the `q` key was pressed, break from the loop
@@ -108,11 +116,14 @@ while True:
 		break
 
 # do a bit of cleanup
-cv2.destroyAllWindows()
+#cv2.destroyAllWindows()
 sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
+sockControl.shutdown(socket.SHUT_RDWR)
+sockControl.close()
 sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.close()
+connection.close()
 sockDeath.shutdown(socket.SHUT_RDWR)
 sockDeath.close()
 print("End")

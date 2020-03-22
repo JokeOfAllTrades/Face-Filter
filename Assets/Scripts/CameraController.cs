@@ -18,12 +18,13 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private Thread recieveImageThread;
         private bool dataThreadContinue = true;
         private bool imageThreadContinue = true;
-        // prevents the data thread from writing when true
+        // Prevents the data thread from assigning face boundaries when true
         private bool dataThreadLock = false;
+        private static int controlPort = 5056;
         private static int dataPort = 5056;
-        private static int imagePort = 5057;
+        private static int imagePort = 5058;
         // port that helps shut down the python process
-        private static int destroyPort = 5058;
+        private static int destroyPort = 5059;
         // planeScreen screen holds the texture the camera transmits to planeOverley holds the texture of what ever images fit on top of it
         private GameObject planeScreen;
         private GameObject planeOverley;
@@ -67,7 +68,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             sides = new int[4] { xMiddlePixel, yMiddlePixel, xMiddlePixel, yMiddlePixel };
             planeOverley.GetComponent<Renderer>().enabled = false;
 
-            camTexture = new WebCamTexture(400, 300);
+            camTexture = new WebCamTexture(300, 300);
             camTexture.Play();
             flatScreen = new Texture2D(camTexture.width, camTexture.height);
             planeScreen.GetComponent<Renderer>().material.mainTexture = camTexture;
@@ -191,13 +192,24 @@ namespace JokeOfAllTrades.FaceFilter.Primary
 
         private void SendImage()
         {
-            UdpClient client = new UdpClient(imagePort);
-            
+            UdpClient client = new UdpClient();
+            TcpClient control = new TcpClient();
+
             IPEndPoint endpoint = null;
+            IPEndPoint tcp = null;
+            bool connectionMade = false;
             try
             {
                 endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), imagePort);
                 client.Connect(endpoint);
+            }
+            catch (SocketException e)
+            {
+                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                {
+                    Thread.ResetAbort();
+                }
+                UnityEngine.Debug.Log(e.ToString());
             }
             catch (Exception e)
             {
@@ -207,15 +219,45 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                 }
                 UnityEngine.Debug.Log(e.ToString());
             }
+            try
+            {
+                tcp = new IPEndPoint(IPAddress.Parse("127.0.0.1"), controlPort);
+            }
+            catch (Exception e)
+            {    
+                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                {
+                    Thread.ResetAbort();
+                }
+                UnityEngine.Debug.Log(e.ToString());
+            }
+
+            while(connectionMade != true)
+            {
+                try
+                {
+                    control.Connect(tcp);
+                    connectionMade = true;
+                }
+                catch (Exception e)
+                {
+                    if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                    {
+                        Thread.ResetAbort();
+                    }
+                    Thread.Sleep(100);
+                }
+            }
 
             while (imageThreadContinue)
             {
                 try
                 {
                     if (imageData != null)
-                    { 
+                    {
                         byte[] size = BitConverter.GetBytes(imageData.Length);
-                        client.Send(size, 4);
+                        NetworkStream stream = control.GetStream();
+                        stream.Write(size, 0, 4);
                         client.Send(imageData, imageData.Length);
                     }
                 }
@@ -226,9 +268,23 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                         Thread.ResetAbort();
                     }
                     UnityEngine.Debug.Log(e.ToString());
+                    try
+                    {
+                        endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), imagePort);
+                        client.Connect(endpoint);
+                    }
+                    catch (Exception x)
+                    {
+                        if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
+                        {
+                            Thread.ResetAbort();
+                        }
+                        UnityEngine.Debug.Log(x.ToString());
+                    }
                 }
             }
             client.Dispose();
+            control.Dispose();
         }
 
         void SetMask(int[] boundaries, Transform maskTransform)
@@ -267,7 +323,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(4, 0, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(-4, 0, 0), UnityEngine.Color.white, 1);
             UnityEngine.Debug.DrawLine(new Vector3(0, 0, 0), new Vector3(0, -3, 0), UnityEngine.Color.white, 1);        
-           
+               
             UnityEngine.Debug.DrawLine(new Vector3(xMin, yMax, 0), new Vector3(xMin, yMin, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMin, 0), new Vector3(xMax, yMax, 0), UnityEngine.Color.black, 1);
             UnityEngine.Debug.DrawLine(new Vector3(xMax, yMax, 0), new Vector3(xMin, yMax, 0), UnityEngine.Color.black, 1);
