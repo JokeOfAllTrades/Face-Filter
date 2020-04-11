@@ -11,6 +11,22 @@ import socket
 import cv2
 import struct
 import sys
+import ctypes, os 
+
+def micros():
+    "return a timestamp in microseconds (us)"
+    tics = ctypes.c_int64()
+    freq = ctypes.c_int64()
+
+    #get ticks on the internal ~2MHz QPC clock
+    ctypes.windll.Kernel32.QueryPerformanceCounter(ctypes.byref(tics)) 
+    #get the actual freq. of the internal ~2MHz QPC clock
+    ctypes.windll.Kernel32.QueryPerformanceFrequency(ctypes.byref(freq))  
+
+    t_us = tics.value*1e6/freq.value
+    return t_us
+
+
 try:
 # construct the argument parse and parse the arguments
 	ap = argparse.ArgumentParser()
@@ -24,11 +40,6 @@ try:
 
 # load our serialized model from disk
 	net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
-
-	sockControl = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sockControl.bind(('localhost', 5056))
-	sockControl.listen(0)
-	connection, address = sockControl.accept()
 
 	sockRect = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	sockRect.connect(('localhost', 5057))
@@ -47,58 +58,51 @@ print("Start")
 while True:
 
 	# grab the frame from the threaded video stream and resize it
-	# to have a maximum width of 300 pixels
+	# to have a maximum width of 300 pixels		
 	try:
-		buffSizeArray = connection.recv(4)
-		buffSize = buffSizeArray[0:1] + buffSizeArray[1:2] + buffSizeArray[2:3] + buffSizeArray[3:4]
-		buffSizeInt = int.from_bytes(buffSize, byteorder='little')
-		
-		try:
-			frameBuff = sockImage.recv(65527)
-			frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
-			frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
-			frame = imutils.resize(frame, width=400)
+		frameBuff = sockImage.recv(65527)
+		frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
+		frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
+		frame = imutils.resize(frame, width=400)
 
-			# grab the frame dimensions and convert it to a blob
-			(h, w) = frame.shape[:2]
-			blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
-				(300, 300), (104.0, 177.0, 123.0))
+		# grab the frame dimensions and convert it to a blob
+		(h, w) = frame.shape[:2]
+		blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+			(300, 300), (104.0, 177.0, 123.0))
 
-			# pass the blob through the network and obtain the detections and
-			# predictions
-			net.setInput(blob)
-			detections = net.forward()
+		# pass the blob through the network and obtain the detections and
+		# predictions
+		net.setInput(blob)
+		detections = net.forward()
 
-			# loop over the detections
-			for i in range(0, detections.shape[2]):
-				# extract the confidence (i.e., probability) associated with the
-				# prediction
-				confidence = detections[0, 0, i, 2]
+		# loop over the detections
+		for i in range(0, detections.shape[2]):
+			cv2.imshow("Frame", frame)
+			key = cv2.waitKey(1) & 0xFF
 
-				# filter out weak detections by ensuring the `confidence` is
-				# greater than the minimum confidence
-				if confidence < args["confidence"]:
-					continue
+			# extract the confidence (i.e., probability) associated with the
+			# prediction
+			confidence = detections[0, 0, i, 2]
 
-				# compute the (x, y)-coordinates of the bounding box for the
-				# object
-				box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-				(startX, startY, endX, endY) = box.astype("int")
+			# filter out weak detections by ensuring the `confidence` is
+			# greater than the minimum confidence
+			if confidence < args["confidence"]:
+				continue
 
-				#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+			# compute the (x, y)-coordinates of the bounding box for the
+			# object
+			box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+			(startX, startY, endX, endY) = box.astype("int")
 
-				sockRect.send( np.array((struct.pack('<i',startX))) )
-				sockRect.send( np.array((struct.pack('<i',startY))) )
-				sockRect.send( np.array((struct.pack('<i',endX))) )
-				sockRect.send( np.array((struct.pack('<i',endY))) )
+			#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+			sockRect.send( np.array((struct.pack('<i',startX))) )
+			sockRect.send( np.array((struct.pack('<i',startY))) )
+			sockRect.send( np.array((struct.pack('<i',endX))) )
+			sockRect.send( np.array((struct.pack('<i',endY))) )
 	
 			# show the output frame
-			#cv2.imshow("Frame", frame)
-
-		except Exception as e:
-			exc_type, exc_obj, exc_tb = sys.exc_info()
-			print(e, exc_type, exc_tb.tb_lineno)
-
+			#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+			
 	except Exception as e:
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print(e, exc_type, exc_tb.tb_lineno)

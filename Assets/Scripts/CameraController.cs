@@ -14,8 +14,8 @@ namespace JokeOfAllTrades.FaceFilter.Primary
     public class CameraController : MonoBehaviour
     {
         // threads and cancels: image thread gets image data, data thread gets a square the face fits into
-        private Thread recieveDataThread;
-        private Thread recieveImageThread;
+        private Thread receiveDataThread;
+        private Thread receiveImageThread;
         private bool dataThreadContinue = true;
         private bool imageThreadContinue = true;
         // Prevents the data thread from assigning face boundaries when true
@@ -25,9 +25,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private static int imagePort = 5058;
         // port that helps shut down the python process
         private static int destroyPort = 5059;
-        // planeScreen screen holds the texture the camera transmits to planeOverley holds the texture of what ever images fit on top of it
+        // planeScreen screen holds the texture the camera transmits to planeOverlay holds the texture of what ever images fit on top of it
         private GameObject planeScreen;
-        private GameObject planeOverley;
+        private GameObject planeOverlay;
         private Camera mainCamera;
         private float pixelToUnitFactor;
         // used to adjust the y value of the mask to fit the face
@@ -59,14 +59,14 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         void Start()
         {
             planeScreen = GameObject.Find("PlaneScreen");
-            planeOverley = GameObject.Find("PlaneOverley");
-            baseMaskWidth = planeOverley.GetComponent<Transform>().localScale.x;
-            baseMaskHeight = planeOverley.GetComponent<Transform>().localScale.y;
+            planeOverlay = GameObject.Find("PlaneOverlay");
+            baseMaskWidth = planeOverlay.GetComponent<Transform>().localScale.x;
+            baseMaskHeight = planeOverlay.GetComponent<Transform>().localScale.y;
             mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
             pixelToUnitFactor = mainCamera.orthographicSize * 2 / mainCamera.pixelHeight;
             planeScreen.transform.localScale = new Vector3(xMiddlePixel * 2 * pixelToUnitFactor / 10, 1, yMiddlePixel * 2 * pixelToUnitFactor / 10);
             sides = new int[4] { xMiddlePixel, yMiddlePixel, xMiddlePixel, yMiddlePixel };
-            planeOverley.GetComponent<Renderer>().enabled = false;
+            planeOverlay.GetComponent<Renderer>().enabled = false;
 
             camTexture = new WebCamTexture(300, 300);
             camTexture.Play();
@@ -128,12 +128,12 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private void InitiateThreads()
         {
             // really consider using async stuff here
-            recieveDataThread = new Thread(new ThreadStart(ReceiveData));
-            recieveDataThread.IsBackground = true;
-            recieveDataThread.Start();
-            recieveImageThread = new Thread(new ThreadStart(SendImage));
-            recieveImageThread.IsBackground = true;
-            recieveImageThread.Start();
+            receiveDataThread = new Thread(new ThreadStart(ReceiveData));
+            receiveDataThread.IsBackground = true;
+            receiveDataThread.Start();
+            receiveImageThread = new Thread(new ThreadStart(SendImage));
+            receiveImageThread.IsBackground = true;
+            receiveImageThread.Start();
         }
 
         private void ReceiveData()
@@ -141,19 +141,6 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             UdpClient client = new UdpClient(dataPort);
 
             IPEndPoint endpoint = null;
-            try
-            {
-                endpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), dataPort);
-            }
-            catch (Exception e)
-            {
-                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                {
-                    Thread.ResetAbort();
-                }
-                UnityEngine.Debug.Log(e.ToString());
-            }
-
             while (dataThreadContinue)
             {
                 // holds a local copy of the sides array
@@ -180,10 +167,6 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                 }
                 catch (Exception e)
                 {
-                    if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                    {
-                        Thread.ResetAbort();
-                    }
                     UnityEngine.Debug.Log(e.ToString());
                 }
             }
@@ -193,60 +176,17 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private void SendImage()
         {
             UdpClient client = new UdpClient();
-            TcpClient control = new TcpClient();
 
             IPEndPoint endpoint = null;
-            IPEndPoint tcp = null;
-            bool connectionMade = false;
+
             try
             {
                 endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), imagePort);
                 client.Connect(endpoint);
             }
-            catch (SocketException e)
-            {
-                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                {
-                    Thread.ResetAbort();
-                }
-                UnityEngine.Debug.Log(e.ToString());
-            }
             catch (Exception e)
             {
-                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                {
-                    Thread.ResetAbort();
-                }
                 UnityEngine.Debug.Log(e.ToString());
-            }
-            try
-            {
-                tcp = new IPEndPoint(IPAddress.Parse("127.0.0.1"), controlPort);
-            }
-            catch (Exception e)
-            {    
-                if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                {
-                    Thread.ResetAbort();
-                }
-                UnityEngine.Debug.Log(e.ToString());
-            }
-
-            while(connectionMade != true)
-            {
-                try
-                {
-                    control.Connect(tcp);
-                    connectionMade = true;
-                }
-                catch (Exception e)
-                {
-                    if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                    {
-                        Thread.ResetAbort();
-                    }
-                    Thread.Sleep(100);
-                }
             }
 
             while (imageThreadContinue)
@@ -255,18 +195,11 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                 {
                     if (imageData != null)
                     {
-                        byte[] size = BitConverter.GetBytes(imageData.Length);
-                        NetworkStream stream = control.GetStream();
-                        stream.Write(size, 0, 4);
                         client.Send(imageData, imageData.Length);
                     }
                 }
                 catch (Exception e)
                 {
-                    if(Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                    {
-                        Thread.ResetAbort();
-                    }
                     UnityEngine.Debug.Log(e.ToString());
                     try
                     {
@@ -275,26 +208,30 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                     }
                     catch (Exception x)
                     {
-                        if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.Aborted)
-                        {
-                            Thread.ResetAbort();
-                        }
                         UnityEngine.Debug.Log(x.ToString());
                     }
                 }
             }
             client.Dispose();
-            control.Dispose();
         }
 
         void SetMask(int[] boundaries, Transform maskTransform)
         {
             // Prevents the data thread from altering our values during assignment
+            float xMin;
+            float yMin;
+            float xMax;
+            float yMax;
+
+            lock (boundaries)
+            {
+                xMin = boundaries[0];
+                yMin = boundaries[1];
+                xMax = boundaries[2];
+                yMax = boundaries[3];
+            }
             dataThreadLock = true;
-            float xMin = boundaries[0];
-            float yMin = boundaries[1];
-            float xMax = boundaries[2];
-            float yMax = boundaries[3];
+
             dataThreadLock = false;
 
             // Centering around the middle pixel
@@ -343,17 +280,23 @@ namespace JokeOfAllTrades.FaceFilter.Primary
 
         void Update()
         {
+            UnityEngine.Debug.Log("Time 1");
+            UnityEngine.Debug.Log(Time.realtimeSinceStartup);
             if (camTexture.didUpdateThisFrame == true)
-            { 
+            {
+                UnityEngine.Debug.Log("Time 2");
+                UnityEngine.Debug.Log(Time.realtimeSinceStartup);
                 flatScreen.SetPixels32(camTexture.GetPixels32());
+                UnityEngine.Debug.Log("Time 3");
+                UnityEngine.Debug.Log(Time.realtimeSinceStartup);
                 imageData = ImageConversion.EncodeToJPG(flatScreen);
             }
 
             // triggers only after sides has been initialized
             if (sides != null && sides[0] != 150 && sides[2] != 150)
             {
-                SetMask(sides, planeOverley.GetComponent<Transform>());
-                planeOverley.GetComponent<Renderer>().enabled = true;
+                SetMask(sides, planeOverlay.GetComponent<Transform>());
+                planeOverlay.GetComponent<Renderer>().enabled = true;
             }
         }
 

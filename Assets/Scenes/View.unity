@@ -562,7 +562,7 @@ GameObject:
   - component: {fileID: 696165033}
   - component: {fileID: 696165032}
   m_Layer: 0
-  m_Name: PlaneOverley
+  m_Name: PlaneOverlay
   m_TagString: Plane
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
