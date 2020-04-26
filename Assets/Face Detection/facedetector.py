@@ -11,20 +11,6 @@ import socket
 import cv2
 import struct
 import sys
-import ctypes, os 
-
-def micros():
-    "return a timestamp in microseconds (us)"
-    tics = ctypes.c_int64()
-    freq = ctypes.c_int64()
-
-    #get ticks on the internal ~2MHz QPC clock
-    ctypes.windll.Kernel32.QueryPerformanceCounter(ctypes.byref(tics)) 
-    #get the actual freq. of the internal ~2MHz QPC clock
-    ctypes.windll.Kernel32.QueryPerformanceFrequency(ctypes.byref(freq))  
-
-    t_us = tics.value*1e6/freq.value
-    return t_us
 
 
 try:
@@ -37,7 +23,6 @@ try:
 	ap.add_argument("-c", "--confidence", type=float, default=0.5,
 		help="minimum probability to filter weak detections")
 	args = vars(ap.parse_args())
-
 # load our serialized model from disk
 	net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
 
@@ -53,64 +38,72 @@ except Exception as e:
 	exc_type, exc_obj, exc_tb = sys.exc_info()
 	print(e, exc_type, exc_tb.tb_lineno)
 
-print("Start")
+timeStart = time.time()
+print(f'Start: {timeStart}')
 # loop over the frames from the video stream
+counter = 0
+averageTime = 0
 while True:
+	averageTime = averageTime * counter
+	counter = counter + 1
+	timeOne = time.time()
+	#print(f'Time one:   {timeOne}')
 
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 300 pixels		
-	try:
-		frameBuff = sockImage.recv(65527)
-		frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
-		frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
-		frame = imutils.resize(frame, width=400)
 
-		# grab the frame dimensions and convert it to a blob
-		(h, w) = frame.shape[:2]
-		blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
-			(300, 300), (104.0, 177.0, 123.0))
+	frameBuff = sockImage.recv(65527)
+	frameMat = np.frombuffer(frameBuff, dtype=np.uint8)
+	frame = cv2.imdecode(frameMat,cv2.IMREAD_COLOR)
+	frame = imutils.resize(frame, width=300)
 
-		# pass the blob through the network and obtain the detections and
-		# predictions
-		net.setInput(blob)
-		detections = net.forward()
+	# grab the frame dimensions and convert it to a blob
+	(h, w) = frame.shape[:2]
+	blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+		(300, 300), (104.0, 177.0, 123.0), crop = True)
 
-		# loop over the detections
-		for i in range(0, detections.shape[2]):
-			cv2.imshow("Frame", frame)
-			key = cv2.waitKey(1) & 0xFF
+	# pass the blob through the network and obtain the detections and
+	# predictions
+	net.setInput(blob)
+	detections = net.forward()
 
-			# extract the confidence (i.e., probability) associated with the
-			# prediction
-			confidence = detections[0, 0, i, 2]
+	# loop over the detections
+	#timeTwo = time.time()
+	#print(f'Time two:   {timeTwo}')
+	#for i in range(0, detections.shape[2]):
+		# extract the confidence (i.e., probability) associated with the
+		# prediction
+	#	confidence = detections[0, 0, i, 2]
 
-			# filter out weak detections by ensuring the `confidence` is
-			# greater than the minimum confidence
-			if confidence < args["confidence"]:
-				continue
+		# filter out weak detections by ensuring the `confidence` is
+		# greater than the minimum confidence
+	#	if confidence < args["confidence"]:
+	#		continue
 
-			# compute the (x, y)-coordinates of the bounding box for the
-			# object
-			box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-			(startX, startY, endX, endY) = box.astype("int")
+		# compute the (x, y)-coordinates of the bounding box for the
+		# object
+	#	box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+	#	(startX, startY, endX, endY) = box.astype("int")
 
-			#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-			sockRect.send( np.array((struct.pack('<i',startX))) )
-			sockRect.send( np.array((struct.pack('<i',startY))) )
-			sockRect.send( np.array((struct.pack('<i',endX))) )
-			sockRect.send( np.array((struct.pack('<i',endY))) )
+		#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+		#sockRect.send( np.array((struct.pack('<i',startX))) )
+		#sockRect.send( np.array((struct.pack('<i',startY))) )
+		#sockRect.send( np.array((struct.pack('<i',endX))) )
+		#sockRect.send( np.array((struct.pack('<i',endY))) )
 	
-			# show the output frame
-			#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-			
-	except Exception as e:
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print(e, exc_type, exc_tb.tb_lineno)
-		pass
+	# show the output frame
+	cv2.imshow("Frame", frame)
+	key = cv2.waitKey(1) & 0xFF
+
 
 	# if the `q` key was pressed, break from the loop
 	key = None
 	try:
+		timeThree = time.time()
+		timeDifference = timeThree - timeOne
+		#print(f'Time difference: {timeDifference}')
+		averageTime = (averageTime + timeDifference) / counter
+		print(f'Time average:    {averageTime}')
 		key = sockDeath.recv(1);
 	except:
 		pass
@@ -123,12 +116,10 @@ while True:
 #cv2.destroyAllWindows()
 sockRect.shutdown(socket.SHUT_RDWR)
 sockRect.close()
-sockControl.shutdown(socket.SHUT_RDWR)
-sockControl.close()
 sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.close()
-connection.close()
 sockDeath.shutdown(socket.SHUT_RDWR)
 sockDeath.close()
-print("End")
-sys.exit()
+timeStop = time.time()
+print(f'End: {timeStop}')
+#sys.exit()

@@ -310,9 +310,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             byte[] q = { (byte)'q' };
             killSwitch.Send(q, 1);
             killSwitch.Dispose();
-            process.CloseMainWindow();
-            process.Close();
-            process.Dispose();
+            //process.CloseMainWindow();
+            //process.Close();
+            //process.Dispose();
         }
     }
 }
