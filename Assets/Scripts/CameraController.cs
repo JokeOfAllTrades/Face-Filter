@@ -88,8 +88,8 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                     Arguments = "/k",
                     RedirectStandardInput = true,
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true,
+                    //RedirectStandardOutput = true,
+                    //CreateNoWindow = true,
                     WorkingDirectory = anacondaDirectory,
                 }
             };
@@ -287,9 +287,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             byte[] q = { (byte)'q' };
             killSwitch.Send(q, 1);
             killSwitch.Dispose();
-            process.CloseMainWindow();
-            process.Close();
-            process.Dispose();
+            //process.CloseMainWindow();
+            //process.Close();
+            //Sprocess.Dispose();
         }
     }
 }

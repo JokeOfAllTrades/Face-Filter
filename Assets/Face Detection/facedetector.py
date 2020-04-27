@@ -36,9 +36,17 @@ sockImage.connect(('localhost', 5057))
 sockDeath = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sockDeath.bind(('localhost', 5058))
 sockDeath.setblocking(0)
-print("Start")
+
+timeStart = time.time()
+print(f'Start: {timeStart}')
+# loop over the frames from the video stream
+counter = 0
+averageTime = 0
 # loop over the frames from the video stream
 while True:
+	totalTime = averageTime * counter
+	counter = counter + 1
+
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 400 pixels
 	frame = vs.read()
@@ -52,7 +60,12 @@ while True:
 	# pass the blob through the network and obtain the detections and
 	# predictions
 	net.setInput(blob)
-	detections = net.forward()
+	timeOne = time.time()
+	detections = net.forward()	
+	timeTwo = time.time()
+	timeDifference = timeTwo - timeOne
+	averageTime = (totalTime + timeDifference) / counter
+	print(f'Time average:    {averageTime}')
 
 	# loop over the detections
 	for i in range(0, detections.shape[2]):
@@ -102,5 +115,6 @@ sockImage.shutdown(socket.SHUT_RDWR)
 sockImage.close()
 sockDeath.shutdown(socket.SHUT_RDWR)
 sockDeath.close()
-print("End")
-sys.exit()
+timeStop = time.time()
+print(f'End: {timeStop}')
+#sys.exit()
