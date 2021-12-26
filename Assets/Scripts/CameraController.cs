@@ -40,13 +40,14 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         // used to hold the data sent by the data thread
         private int[] sides;
         private byte[] imageData;
+
         // for use by python/anaconda
-        private static String presentWorkingDirctory = Directory.GetCurrentDirectory();
-        
+        private static String presentWorkingDirectory = Directory.GetCurrentDirectory();
+        /*
         private static String anacondaDirectory = @"C:\Users\DJ\Anaconda3\Scripts";
         private static String anacondaCommand = anacondaDirectory + @"\activate.bat";
         private static String presentWorkingDirectory = Directory.GetCurrentDirectory();
-
+        */
         private static String pythonCommand = @"python facedetector.py --prototxt deploy.prototxt.txt --model res10_300x300_ssd_iter_140000.caffemodel";
         private Process process;
         // used to terminate the python script
@@ -95,7 +96,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
                     UseShellExecute = false,
                     //RedirectStandardOutput = true,
                     //CreateNoWindow = true,
-                    WorkingDirectory = anacondaDirectory,
+                    //WorkingDirectory = anacondaDirectory,
                 }
             };
             process.Start();
@@ -103,8 +104,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             var inputStream = process.StandardInput;
             if (inputStream.BaseStream.CanWrite)
             {
-                inputStream.WriteLine(anacondaCommand);
+                //inputStream.WriteLine(anacondaCommand);
                 inputStream.WriteLine(pythonCommand);
+                Directory.SetCurrentDirectory(presentWorkingDirectory);
             }
 
         }
@@ -310,9 +312,9 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             byte[] q = { (byte)'q' };
             killSwitch.Send(q, 1);
             killSwitch.Dispose();
-            //process.CloseMainWindow();
-            //process.Close();
-            //process.Dispose();
+            process.CloseMainWindow();
+            process.Close();
+            process.Dispose();
             Directory.SetCurrentDirectory(presentWorkingDirectory);
         }
     }
