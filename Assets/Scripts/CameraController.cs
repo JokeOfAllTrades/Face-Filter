@@ -41,14 +41,13 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         private int[] sides;
         private byte[] imageData;
         // for use by python/anaconda
-        private static String anacondaDirectory = "C:\\Users\\DJ\\Anaconda3\\Scripts";
-        private static String anacondaCommand = anacondaDirectory + "\\activate.bat";
-        private static String projectDirectory = "C:\\Users\\DJ\\Documents\\Development\\Unity Games\\Face Filter\\Assets\\Face Detection";
-        private static String pythonCommand = "python \""
-            + projectDirectory + "\\facedetector.py\" " + "--prototxt \""
-            + projectDirectory + "\\deploy.prototxt.txt\" " + "--model \""
-            + projectDirectory + "\\res10_300x300_ssd_iter_140000.caffemodel\"";
-        // the process used to launch the python script
+        private static String presentWorkingDirctory = Directory.GetCurrentDirectory();
+        
+        private static String anacondaDirectory = @"C:\Users\DJ\Anaconda3\Scripts";
+        private static String anacondaCommand = anacondaDirectory + @"\activate.bat";
+        private static String presentWorkingDirectory = Directory.GetCurrentDirectory();
+
+        private static String pythonCommand = @"python facedetector.py --prototxt deploy.prototxt.txt --model res10_300x300_ssd_iter_140000.caffemodel";
         private Process process;
         // used to terminate the python script
         private UdpClient killSwitch;
@@ -58,6 +57,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
         
         void Start()
         {
+            Directory.SetCurrentDirectory(presentWorkingDirectory + @"\Assets\Face Detection");
             planeScreen = GameObject.Find("PlaneScreen");
             planeOverlay = GameObject.Find("PlaneOverlay");
             baseMaskWidth = planeOverlay.GetComponent<Transform>().localScale.x;
@@ -313,6 +313,7 @@ namespace JokeOfAllTrades.FaceFilter.Primary
             //process.CloseMainWindow();
             //process.Close();
             //process.Dispose();
+            Directory.SetCurrentDirectory(presentWorkingDirectory);
         }
     }
 }
