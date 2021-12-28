@@ -1,151 +1,236 @@
+/* Copyright (c) 2019-present Evereal. All rights reserved. */
+
+using System;
+using System.Collections.Generic;
 using UnityEngine;
-using System.IO;
-using System.Runtime.InteropServices;
 
 namespace Evereal.VideoCapture
 {
   /// <summary>
-  /// <c>AudioCapture</c> component.
-  /// Place this script to target <c>AudioListener</c> component, this will
-  /// capture audio listener's sample and encode to audio file.
+  /// This script will record target audio listener sample and encode to audio file, or mux audio into video file if required.
   /// </summary>
-  [RequireComponent(typeof(AudioListener))]
-  public class AudioCapture : MonoBehaviour
+  [Serializable]
+  public class AudioCapture : MonoBehaviour, ICapture
   {
-    /// <summary>
-    /// Get or set the current status.
-    /// </summary>
-    /// <value>The current status.</value>
-    public VideoCaptureCtrl.StatusType status { get; set; }
-    /// <summary>
-    /// The captured audio path.
-    /// </summary>
-    public string filePath { get; protected set; }
-    /// <summary>
-    /// Delegate to register event.
-    /// </summary>
-    public EventDelegate eventDelegate;
-    /// <summary>
-    /// Reference to native lib API.
-    /// </summary>
-    private System.IntPtr libAPI;
-    /// <summary>
-    /// The audio capture prepare vars.
-    /// </summary>
-    private System.IntPtr audioPointer;
-    private System.Byte[] audioByteBuffer;
-    /// <summary>
-    /// Cleanup this instance.
-    /// </summary>
-    public void Cleanup()
+    #region Properties
+
+    // Start capture on awake if set to true.
+    [SerializeField]
+    public bool startOnAwake = false;
+    // Quit process after capture finish.
+    [SerializeField]
+    public bool quitAfterCapture = false;
+    // The capture duration if start capture on awake.
+    [SerializeField]
+    public float captureTime = 30f;
+
+    [Tooltip("Save folder for recorded audio")]
+    // Save path for recorded video including file name (c://xxx.wav)
+    [SerializeField]
+    public string saveFolder = "";
+
+    // Capture microphone settings
+    [SerializeField]
+    public bool captureMicrophone = false;
+    // Microphone device index
+    [SerializeField]
+    public int deviceIndex = 0;
+
+    // The audio recorder
+    private IRecorder audioRecorder;
+
+    // Get or set the current status.
+    public CaptureStatus status
     {
-      if (File.Exists(filePath)) File.Delete(filePath);
-      AudioCaptureLib_Clean(libAPI);
-    }
-    /// <summary>
-    /// Start capture audio.
-    /// </summary>
-    public void StartCapture()
-    {
-      // Check if we can start capture session.
-      if (status != VideoCaptureCtrl.StatusType.NOT_START &&
-          status != VideoCaptureCtrl.StatusType.FINISH)
+      get
       {
-        Debug.LogWarning("[AudioCapture::StartCapture] Previous capture not finish yet!");
-        return;
-      }
-      // Init audio save destination.
-      if (filePath == null || filePath == string.Empty)
-      {
-        filePath = PathConfig.SaveFolder + StringUtils.GetWavFileName(StringUtils.GetRandomString(5));
-      }
-      libAPI = AudioCaptureLib_Get(
-          AudioSettings.outputSampleRate,
-          filePath,
-          PathConfig.ffmpegPath);
-      if (libAPI == System.IntPtr.Zero)
-      {
-        Debug.LogWarning("[AudioCapture::StartCapture] Get native LibAudioCaptureAPI failed!");
-        return;
-      }
-      // Init temp vars.
-      audioByteBuffer = new System.Byte[8192];
-      GCHandle audioHandle = GCHandle.Alloc(audioByteBuffer, GCHandleType.Pinned);
-      audioPointer = audioHandle.AddrOfPinnedObject();
-      status = VideoCaptureCtrl.StatusType.STARTED;
-    }
-    /// <summary>
-    /// Finish capture audio.
-    /// </summary>
-    public void StopCapture()
-    {
-      if (status != VideoCaptureCtrl.StatusType.STARTED && status != VideoCaptureCtrl.StatusType.PAUSED)
-      {
-        Debug.LogWarning("[AudioCapture::StopCapture] capture session not start yet!");
-        return;
-      }
-      AudioCaptureLib_Close(libAPI);
-      status = VideoCaptureCtrl.StatusType.FINISH;
-      // Notify caller audio capture complete.
-      if (eventDelegate.OnComplete != null)
-      {
-        eventDelegate.OnComplete();
-      }
-      if (VideoCaptureCtrl.instance.debug)
-      {
-        Debug.Log("[AudioCapture::StopCapture] Encode process finish!");
+        if (audioRecorder != null && audioRecorder.RecordStarted())
+          return CaptureStatus.STARTED;
+        return CaptureStatus.READY;
       }
     }
-    /// <summary>
-    /// Toggle capture audio.
-    /// </summary>
-    public void ToggleCapture()
-    {
-      if (status == VideoCaptureCtrlBase.StatusType.STARTED)
-      {
-        status = VideoCaptureCtrlBase.StatusType.PAUSED;
-      }
-      else if (status == VideoCaptureCtrlBase.StatusType.PAUSED)
-      {
-        status = VideoCaptureCtrlBase.StatusType.STARTED;
-      };
-    }
-    #region Unity Lifecycle
-    /// <summary>
-    /// Called before any Start functions and also just after a prefab is instantiated
-    /// </summary>
-    private void Awake()
-    {
-      status = VideoCaptureCtrl.StatusType.NOT_START;
-      eventDelegate = new EventDelegate();
-    }
-    /// <summary>
-    /// If OnAudioFilterRead is implemented, Unity will insert a custom filter into the audio DSP chain.
-    /// </summary>
-    /// <param name="data">Data.</param>
-    /// <param name="channels">Channels.</param>
-    private void OnAudioFilterRead(float[] data, int channels)
-    {
-      if (status == VideoCaptureCtrl.StatusType.STARTED)
-      {
-        Marshal.Copy(data, 0, audioPointer, 2048);
-        AudioCaptureLib_WriteFrame(libAPI, audioByteBuffer);
-      }
-    }
+
+    private string saveFolderFullPath = "";
+
+    // Log message format template
+    private string LOG_FORMAT = "[AudioCapture] {0}";
+
     #endregion
 
-    #region Dll Import
-    [DllImport("VideoCaptureLib")]
-    static extern System.IntPtr AudioCaptureLib_Get(int rate, string path, string ffpath);
+    #region Events
 
-    [DllImport("VideoCaptureLib")]
-    static extern void AudioCaptureLib_WriteFrame(System.IntPtr api, byte[] data);
+    protected Queue<CaptureCompleteEventArgs> completeEventQueue = new Queue<CaptureCompleteEventArgs>();
+    protected Queue<CaptureErrorEventArgs> errorEventQueue = new Queue<CaptureErrorEventArgs>();
 
-    [DllImport("VideoCaptureLib")]
-    static extern void AudioCaptureLib_Close(System.IntPtr api);
+    public event EventHandler<CaptureCompleteEventArgs> OnComplete;
 
-    [DllImport("VideoCaptureLib")]
-    static extern void AudioCaptureLib_Clean(System.IntPtr api);
+    protected void OnCaptureComplete(CaptureCompleteEventArgs args)
+    {
+      EventHandler<CaptureCompleteEventArgs> handler = OnComplete;
+      if (handler != null)
+      {
+        handler(this, args);
+      }
+    }
+
+    public event EventHandler<CaptureErrorEventArgs> OnError;
+
+    protected void OnCaptureError(CaptureErrorEventArgs args)
+    {
+      EventHandler<CaptureErrorEventArgs> handler = OnError;
+      if (handler != null)
+      {
+        handler(this, args);
+      }
+    }
+
+    #endregion
+
+    #region Methods
+
+    // Start capture audio session
+    public bool StartCapture()
+    {
+      // Check if we can start capture session
+      if (status != CaptureStatus.READY)
+      {
+        OnCaptureError(new CaptureErrorEventArgs(CaptureErrorCode.CAPTURE_ALREADY_IN_PROGRESS));
+        return false;
+      }
+
+      saveFolderFullPath = Utils.CreateFolder(saveFolder);
+
+      // Init audio recorder
+      if (captureMicrophone)
+      {
+        if (MicrophoneRecorder.singleton == null)
+        {
+          gameObject.AddComponent<MicrophoneRecorder>();
+        }
+        MicrophoneRecorder.singleton.saveFolderFullPath = saveFolderFullPath;
+        MicrophoneRecorder.singleton.captureType = CaptureType.VOD;
+        audioRecorder = MicrophoneRecorder.singleton;
+      }
+      else
+      {
+        if (AudioRecorder.singleton == null)
+        {
+          if (GetComponent<DontDestroy>() != null)
+          {
+            // Reset AudioListener
+            AudioListener listener = FindObjectOfType<AudioListener>();
+            if (listener)
+            {
+              Destroy(listener);
+              Debug.LogFormat(LOG_FORMAT, "AudioListener found, reset in game scene.");
+            }
+            gameObject.AddComponent<AudioListener>();
+            gameObject.AddComponent<AudioRecorder>();
+          }
+          else
+          {
+            // Keep AudioListener
+            AudioListener listener = FindObjectOfType<AudioListener>();
+            if (!listener)
+            {
+              listener = gameObject.AddComponent<AudioListener>();
+              Debug.LogFormat(LOG_FORMAT, "AudioListener not found, add a new AudioListener.");
+            }
+            listener.gameObject.AddComponent<AudioRecorder>();
+          }
+        }
+        AudioRecorder.singleton.saveFolderFullPath = saveFolderFullPath;
+        AudioRecorder.singleton.captureType = CaptureType.VOD;
+        audioRecorder = AudioRecorder.singleton;
+      }
+
+      if (audioRecorder == null)
+      {
+        OnCaptureError(new CaptureErrorEventArgs(CaptureErrorCode.AUDIO_CAPTURE_START_FAILED));
+        return false;
+      }
+
+      audioRecorder.StartRecord();
+
+      Debug.LogFormat(LOG_FORMAT, "Audio capture session started.");
+
+      return true;
+    }
+
+    // Stop capture audio session
+    public bool StopCapture()
+    {
+      if (status != CaptureStatus.STARTED)
+      {
+        Debug.LogFormat(LOG_FORMAT, "Audio capture session not start yet!");
+        return false;
+      }
+
+      audioRecorder.StopRecord();
+
+      OnCaptureComplete(new CaptureCompleteEventArgs(audioRecorder.GetRecordedAudio()));
+
+      Debug.LogFormat(LOG_FORMAT, "Audio capture session success!");
+
+      return true;
+    }
+
+    // Cancel capture audio session
+    public bool CancelCapture()
+    {
+      if (status != CaptureStatus.STARTED)
+      {
+        Debug.LogFormat(LOG_FORMAT, "Audio capture session not start yet!");
+        return false;
+      }
+
+      audioRecorder.CancelRecord();
+
+      Debug.LogFormat(LOG_FORMAT, "Audio capture session canceled!");
+
+      return true;
+    }
+
+    #endregion
+
+    #region Unity Lifecycle
+
+    private void Awake()
+    {
+      if (startOnAwake)
+      {
+        StartCapture();
+      }
+    }
+
+    private void Update()
+    {
+      if (startOnAwake)
+      {
+        if (Time.time >= captureTime && status == CaptureStatus.STARTED)
+        {
+          StopCapture();
+        }
+        if (quitAfterCapture && status != CaptureStatus.STARTED)
+        {
+#if UNITY_EDITOR
+          UnityEditor.EditorApplication.isPlaying = false;
+#else
+          Application.Quit();
+#endif
+        }
+      }
+    }
+
+    private void OnDestroy()
+    {
+      // Check if still processing on destroy
+      if (status == CaptureStatus.STARTED)
+      {
+        StopCapture();
+      }
+    }
+
     #endregion
   }
 }
