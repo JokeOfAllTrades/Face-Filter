@@ -59,3 +59,5 @@ sysinfo.txt
 crashlytics-build.properties
 
 *.mp4
+Assets/Evereal/
+Assets/OpenCVForUnity/
